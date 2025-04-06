@@ -32,3 +32,6 @@
 *.app
 
 .clangd
+build/
+log.txt
+*.ppm
