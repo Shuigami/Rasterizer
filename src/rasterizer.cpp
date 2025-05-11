@@ -9,7 +9,7 @@ Rasterizer::Rasterizer(int width, int height)
 
     // Initialize buffers
     m_colorBuffer.resize(width * height, 0);
-    m_depthBuffer.resize(width * height, std::numeric_limits<float>::max());
+    m_depthBuffer.resize(width * height, 1.0f); // Initialize to 1.0f (furthest possible depth)
 }
 
 Rasterizer::~Rasterizer() {
@@ -64,6 +64,9 @@ bool Rasterizer::initialize() {
 void Rasterizer::clear(const Color& color) {
     uint32_t clearColor = color.toUint32();
     std::fill(m_colorBuffer.begin(), m_colorBuffer.end(), clearColor);
+    
+    // Reset depth buffer to maximum value (1.0)
+    // Use std::numeric_limits for maximum precision
     std::fill(m_depthBuffer.begin(), m_depthBuffer.end(), std::numeric_limits<float>::max());
 }
 
@@ -169,7 +172,7 @@ void Rasterizer::fillTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, co
     }
 }
 
-void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, const Shader& shader) {
+void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, const Shader& shader, bool wireframeMode) {
     const std::vector<Vertex>& vertices = mesh.getVertices();
     const std::vector<Triangle>& triangles = mesh.getTriangles();
 
@@ -194,9 +197,19 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
         Vec3 edge1 = (out2.worldPos - out1.worldPos);
         Vec3 edge2 = (out3.worldPos - out1.worldPos);
         Vec3 normal = edge1.cross(edge2).normalized();
-        Vec3 view = -Vec3(modelMatrix(2, 0), modelMatrix(2, 1), modelMatrix(2, 2));
-
-        if (normal.dot(view) <= 0.0f) {
+        
+        // Calculate the center of the triangle
+        Vec3 triangleCenter = (out1.worldPos + out2.worldPos + out3.worldPos) / 3.0f;
+        
+        // Get camera position for backface culling
+        Vec3 cameraPos = shader.getCameraPosition();
+        
+        // Use the camera-to-face vector for culling, based on triangle center
+        Vec3 viewDir = (cameraPos - triangleCenter).normalized();
+        
+        // Skip backface culling in wireframe mode
+        // Use a slightly negative threshold to prevent z-fighting on coplanar faces
+        if (!wireframeMode && normal.dot(viewDir) < -0.001f) {
             continue; // Skip triangles facing away from the camera
         }
 
@@ -215,6 +228,12 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
         Vec4 screen2 = viewportTransform(ndc2);
         Vec4 screen3 = viewportTransform(ndc3);
 
+        // Ensure the triangle is visible in the viewport before rasterizing
+        if (screen1.x < 0 && screen2.x < 0 && screen3.x < 0) continue;
+        if (screen1.x >= m_width && screen2.x >= m_width && screen3.x >= m_width) continue;
+        if (screen1.y < 0 && screen2.y < 0 && screen3.y < 0) continue;
+        if (screen1.y >= m_height && screen2.y >= m_height && screen3.y >= m_height) continue;
+        
         // Calculate bounding box for the triangle
         int minX = std::max(0, std::min(std::min(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
         int maxX = std::min(m_width - 1, std::max(std::max(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
@@ -264,7 +283,11 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
 
                     // Depth test
                     int index = y * m_width + x;
-                    if (zInterp < m_depthBuffer[index]) {
+                    // Apply a small bias based on how front-facing the triangle is
+                    float facingRatio = normal.dot(viewDir);
+                    float bias = 0.00001f * (1.0f - facingRatio);
+                    float depthValue = zInterp - bias;
+                    if (depthValue < m_depthBuffer[index]) {
                         // Perspective-correct interpolation
                         alpha *= w1 / wInterp;
                         beta *= w2 / wInterp;
@@ -284,17 +307,43 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
                             static_cast<uint8_t>(out1.color.a * alpha + out2.color.a * beta + out3.color.a * gamma)
                         );
 
+                        // Normalize interpolated normal to ensure proper lighting
+                        Vec3 normalizedNormal = normal.normalized();
+                        
                         // Create fragment input
-                        FragmentShaderInput fragIn{worldPos, normal, texCoord, baseColor};
+                        FragmentShaderInput fragIn{worldPos, normalizedNormal, texCoord, baseColor};
 
                         // Process fragment through the fragment shader
                         Color pixelColor = shader.fragmentShader(fragIn);
 
                         // Update buffers
                         m_colorBuffer[index] = pixelColor.toUint32();
-                        m_depthBuffer[index] = zInterp;
+                        m_depthBuffer[index] = depthValue;
                     }
                 }
+            }
+            
+            // Draw wireframe if enabled
+            if (wireframeMode) {
+                // Use different colors based on whether the face is front or back facing
+                Color wireColor = normal.dot(viewDir) > 0.0f 
+                    ? Color(255, 255, 255)  // White for front facing
+                    : Color(255, 0, 0);     // Red for back facing
+                drawLine(
+                    static_cast<int>(screen1.x), static_cast<int>(screen1.y),
+                    static_cast<int>(screen2.x), static_cast<int>(screen2.y),
+                    wireColor
+                );
+                drawLine(
+                    static_cast<int>(screen2.x), static_cast<int>(screen2.y),
+                    static_cast<int>(screen3.x), static_cast<int>(screen3.y),
+                    wireColor
+                );
+                drawLine(
+                    static_cast<int>(screen3.x), static_cast<int>(screen3.y),
+                    static_cast<int>(screen1.x), static_cast<int>(screen1.y),
+                    wireColor
+                );
             }
         }
     }
@@ -335,14 +384,19 @@ Vec4 Rasterizer::viewportTransform(const Vec4& clipCoords) const {
     float x = (clipCoords.x + 1.0f) * 0.5f * m_width;
     float y = (1.0f - clipCoords.y) * 0.5f * m_height; // Flip y-coordinate
     float z = clipCoords.z; // Depth value in [0, 1]
+    
+    // Ensure z is within valid range [0, 1]
+    z = std::max(0.0f, std::min(1.0f, z));
 
     return Vec4(x, y, z, clipCoords.w);
 }
 
 bool Rasterizer::isInsideFrustum(const Vec4& clipCoords) const {
     // Check if the point is inside the view frustum in clip space
-    float w = clipCoords.w;
+    float w = std::abs(clipCoords.w);
+    
+    // We need at least one vertex to be inside the frustum
     return clipCoords.x >= -w && clipCoords.x <= w &&
            clipCoords.y >= -w && clipCoords.y <= w &&
-           clipCoords.z >= 0.0f && clipCoords.z <= w;
+           clipCoords.z >= 0.0f && clipCoords.z <= w; // Only render in front of the camera
 }

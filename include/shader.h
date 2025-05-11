@@ -120,6 +120,9 @@ public:
     void setViewMatrix(const Matrix4x4& view) { m_view = view; }
     void setProjectionMatrix(const Matrix4x4& projection) { m_projection = projection; }
     void setTexture(const std::shared_ptr<Texture>& texture) { m_texture = texture; }
+    
+    // Get the camera position (used for backface culling)
+    virtual Vec3 getCameraPosition() const { return Vec3(0.0f, 0.0f, 0.0f); }
 
     // Add a light to the scene
     void addLight(const Light& light) {
@@ -150,9 +153,13 @@ class FlatShader : public Shader {
 public:
     FlatShader(const Color& color);
     Color fragmentShader(const FragmentShaderInput& input) const override;
+    
+    void setCameraPosition(const Vec3& cameraPos) { m_cameraPos = cameraPos; }
+    Vec3 getCameraPosition() const override { return m_cameraPos; }
 
 private:
     Color m_color;
+    Vec3 m_cameraPos;
 };
 
 // Texture shader
@@ -160,6 +167,12 @@ class TextureShader : public Shader {
 public:
     TextureShader();
     Color fragmentShader(const FragmentShaderInput& input) const override;
+    
+    void setCameraPosition(const Vec3& cameraPos) { m_cameraPos = cameraPos; }
+    Vec3 getCameraPosition() const override { return m_cameraPos; }
+
+private:
+    Vec3 m_cameraPos;
 };
 
 // Phong lighting shader
@@ -172,6 +185,8 @@ public:
     void setSpecular(float specular) { m_specular = specular; }
     void setShininess(float shininess) { m_shininess = shininess; }
     void setCameraPosition(const Vec3& cameraPos) { m_cameraPos = cameraPos; }
+    
+    Vec3 getCameraPosition() const override { return m_cameraPos; }
 
     Color fragmentShader(const FragmentShaderInput& input) const override;
 

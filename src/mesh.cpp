@@ -172,12 +172,12 @@ void Mesh::createCube() {
 
     // Define the 12 triangles (2 per face)
     int faces[6][4] = {
-        {0, 1, 2, 3},  // back face (0,1,2,3)
-        {4, 7, 6, 5},  // front face (4,7,6,5)
-        {1, 5, 6, 2},  // right face (1,5,6,2)
-        {0, 3, 7, 4},  // left face (0,3,7,4)
-        {3, 2, 6, 7},  // top face (3,2,6,7)
-        {0, 4, 5, 1}   // bottom face (0,4,5,1)
+        {0, 3, 2, 1},  // back face (0,3,2,1) - reversed winding
+        {4, 5, 6, 7},  // front face (4,5,6,7) - proper winding
+        {1, 2, 6, 5},  // right face (1,2,6,5) - proper winding
+        {0, 4, 7, 3},  // left face (0,4,7,3) - proper winding
+        {3, 7, 6, 2},  // top face (3,7,6,2) - proper winding
+        {0, 1, 5, 4}   // bottom face (0,1,5,4) - proper winding
     };
 
     // Create all vertices and triangles
@@ -194,7 +194,7 @@ void Mesh::createCube() {
             m_vertices.push_back(vertex);
         }
 
-        // Add the 2 triangles for this face
+        // Add the 2 triangles for this face with consistent counter-clockwise winding
         m_triangles.push_back(Triangle(baseIndex, baseIndex + 1, baseIndex + 2));
         m_triangles.push_back(Triangle(baseIndex, baseIndex + 2, baseIndex + 3));
     }

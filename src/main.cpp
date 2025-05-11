@@ -11,6 +11,7 @@
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
+bool wireframeMode = false;
 
 int main(int argc, char** argv) {
     // Initialize SDL
@@ -42,9 +43,9 @@ int main(int argc, char** argv) {
     Mesh cubeMesh;
     cubeMesh.createCube();
 
-    // // Create a sphere mesh
-    // Mesh sphereMesh;
-    // sphereMesh.createSphere(16, 16);
+    // Create a sphere mesh
+    Mesh sphereMesh;
+    sphereMesh.createSphere(16, 16);
 
     // Create shaders
     PhongShader phongShader;
@@ -69,22 +70,23 @@ int main(int argc, char** argv) {
     TextureShader textureShader;
     textureShader.setTexture(checkerTexture);
 
-    // Set up a light for the phong shader
-    Light mainLight;
-    mainLight.type = Light::Type::Directional;
-    mainLight.direction = Vec3(1.0f, -1.0f, -1.0f);
-    mainLight.color = Color(255, 255, 255);
-    mainLight.intensity = 1.0f;
-    phongShader.addLight(mainLight);
-
     // Set up point light
     Light pointLight;
     pointLight.type = Light::Type::Point;
-    pointLight.position = Vec3(2.0f, 0.0f, 0.0f);
-    pointLight.color = Color(0, 0, 255);
-    pointLight.intensity = 0.8f;
+    pointLight.position = Vec3(2.0f, 0.0f, 2.0f);
+    pointLight.color = Color(255, 255, 255);
+    pointLight.intensity = 1.f;
     pointLight.range = 10.0f;
     phongShader.addLight(pointLight);
+
+    // Add a second point light from a different angle
+    Light pointLight2;
+    pointLight2.type = Light::Type::Point;
+    pointLight2.position = Vec3(-2.0f, 0.0f, 2.0f);
+    pointLight2.color = Color(255, 255, 255);
+    pointLight2.intensity = 1.f;
+    pointLight2.range = 10.0f;
+    phongShader.addLight(pointLight2);
 
     // Main game loop
     bool running = true;
@@ -93,23 +95,41 @@ int main(int argc, char** argv) {
 
     while (running && !rasterizer.shouldQuit()) {
         // Handle events
-        rasterizer.handleEvents();
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                running = false;
+            } else if (event.type == SDL_KEYDOWN) {
+                if (event.key.keysym.sym == SDLK_ESCAPE) {
+                    running = false;
+                } else if (event.key.keysym.sym == SDLK_w) {
+                    wireframeMode = !wireframeMode;
+                    std::cout << "Wireframe mode: " << (wireframeMode ? "ON" : "OFF") << std::endl;
+                }
+            }
+        }
+
+        // Set camera position to control point of view
+        // This affects backface culling which depends on the camera position
+        Vec3 cameraPos = camera.getPosition();
 
         // Calculate delta time
         uint32_t currentTick = SDL_GetTicks();
         float deltaTime = (currentTick - lastTick) / 1000.0f;
         lastTick = currentTick;
 
-        // Update rotation
-        rotation += 1.0f * deltaTime;
+        // Update rotation (reduced speed to better see the effect)
+        rotation += 0.7f * deltaTime;
 
-        // Update camera position
-        phongShader.setCameraPosition(camera.getPosition());
+        // Update camera position for all shaders
+        phongShader.setCameraPosition(cameraPos);
+        flatShader.setCameraPosition(cameraPos);
+        textureShader.setCameraPosition(cameraPos);
 
         // Update matrices
         Matrix4x4 rotationMatrix = Matrix4x4::rotationY(rotation);
-        Matrix4x4 cubeModelMatrix = rotationMatrix * Matrix4x4::translation(-1.5f, 0.0f, 0.0f);
-        // Matrix4x4 sphereModelMatrix = rotationMatrix * Matrix4x4::translation(1.5f, 0.0f, 0.0f);
+        Matrix4x4 cubeModelMatrix = rotationMatrix * Matrix4x4::translation(0.0f, 0.0f, 0.0f);
+        Matrix4x4 sphereModelMatrix = rotationMatrix * Matrix4x4::translation(1.5f, 0.0f, 0.0f);
 
         // Set the view and projection matrices for the shaders
         phongShader.setViewMatrix(camera.getViewMatrix());
@@ -124,11 +144,11 @@ int main(int argc, char** argv) {
 
         // Render the cube with the phong shader
         phongShader.setModelMatrix(cubeModelMatrix);
-        rasterizer.renderMesh(cubeMesh, cubeModelMatrix, phongShader);
+        rasterizer.renderMesh(cubeMesh, cubeModelMatrix, phongShader, wireframeMode);
 
         // Render the sphere with the texture shader
-        // textureShader.setModelMatrix(sphereModelMatrix);
-        // rasterizer.renderMesh(sphereMesh, sphereModelMatrix, textureShader);
+        phongShader.setModelMatrix(sphereModelMatrix);
+        rasterizer.renderMesh(sphereMesh, sphereModelMatrix, phongShader, wireframeMode);
 
         // Present the frame buffer
         rasterizer.present();
