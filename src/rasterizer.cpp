@@ -192,10 +192,10 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
         VertexShaderOutput out2 = shader.vertexShader(in2);
         VertexShaderOutput out3 = shader.vertexShader(in3);
 
-        // Check if the triangle is facing the camera (backface culling)
-        Vec3 edge1 = (out2.worldPos - out1.worldPos);
-        Vec3 edge2 = (out3.worldPos - out1.worldPos);
-        Vec3 normal = edge1.cross(edge2).normalized();
+        // Get vertex normals first - important for spheres
+        Vec3 vertexNormal1 = out1.normal.normalized();
+        Vec3 vertexNormal2 = out2.normal.normalized();
+        Vec3 vertexNormal3 = out3.normal.normalized();
 
         // Calculate the center of the triangle
         Vec3 triangleCenter = (out1.worldPos + out2.worldPos + out3.worldPos) / 3.0f;
@@ -206,13 +206,26 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
         // Use the camera-to-face vector for culling, based on triangle center
         Vec3 viewDir = (cameraPos - triangleCenter).normalized();
 
-        // Skip backface culling in wireframe mode
-        // Use a slightly negative threshold to prevent z-fighting on coplanar faces
-        if (!wireframeMode && normal.dot(viewDir) < -0.001f) {
-            continue; // Skip triangles facing away from the camera
+        // For spheres: calculate face normal from vertices
+        Vec3 edge1 = (out2.worldPos - out1.worldPos);
+        Vec3 edge2 = (out3.worldPos - out1.worldPos);
+        Vec3 normal = edge1.cross(edge2).normalized();
+
+        // For sphere culling: use BOTH vertex normals and triangle normal
+        // Average the vertex normals for a better test for spheres
+        Vec3 avgVertexNormal = (vertexNormal1 + vertexNormal2 + vertexNormal3).normalized();
+        float vertexNormalDot = avgVertexNormal.dot(viewDir);
+        float faceNormalDot = normal.dot(viewDir);
+
+        // Use the better of the two tests to avoid culling visible triangles
+        float bestDotProduct = std::max(vertexNormalDot, faceNormalDot);
+
+        // Only in filled mode, cull triangles clearly facing away
+        if (!wireframeMode && bestDotProduct < -0.7f) {
+            continue; // Skip triangles facing strongly away from the camera
         }
 
-        // Check if any of the vertices are outside the frustum
+        // Check if all vertices are outside the frustum
         if (!isInsideFrustum(out1.position) && !isInsideFrustum(out2.position) && !isInsideFrustum(out3.position)) {
             continue;
         }
@@ -388,10 +401,12 @@ void Rasterizer::handleEvents() {
 Vec4 Rasterizer::viewportTransform(const Vec4& clipCoords) const {
     float x = (clipCoords.x + 1.0f) * 0.5f * m_width;
     float y = (1.0f - clipCoords.y) * 0.5f * m_height; // Flip y-coordinate
-    float z = clipCoords.z; // Depth value in [0, 1]
 
-    // Ensure z is within valid range [0, 1]
-    z = std::max(0.0f, std::min(1.0f, z));
+    // Transform Z from [-1,1] to [0,1] for the depth buffer
+    float z = (clipCoords.z + 1.0f) * 0.5f;
+
+    // Ensure z is strictly within valid range [0, 1]
+    z = std::max(0.0001f, std::min(0.9999f, z));
 
     return Vec4(x, y, z, clipCoords.w);
 }
@@ -400,8 +415,11 @@ bool Rasterizer::isInsideFrustum(const Vec4& clipCoords) const {
     // Check if the point is inside the view frustum in clip space
     float w = std::abs(clipCoords.w);
 
+    // Add a small margin to avoid clipping at frustum boundaries
+    float margin = 0.1f * w;
+
     // We need at least one vertex to be inside the frustum
-    return clipCoords.x >= -w && clipCoords.x <= w &&
-           clipCoords.y >= -w && clipCoords.y <= w &&
-           clipCoords.z >= 0.0f && clipCoords.z <= w; // Only render in front of the camera
+    return clipCoords.x >= -(w + margin) && clipCoords.x <= (w + margin) &&
+           clipCoords.y >= -(w + margin) && clipCoords.y <= (w + margin) &&
+           clipCoords.z >= -w && clipCoords.z <= w; // Allow full Z-range for better frustum handling
 }

@@ -16,11 +16,6 @@ VertexShaderOutput Shader::vertexShader(const VertexShaderInput& input) const {
     Vec4 viewPos = m_view * worldPos;
     output.position = m_projection * viewPos;
 
-    // Ensure proper Z values for depth testing
-    if (output.position.w != 0.0f) {
-        output.position.z = std::max(0.0f, std::min(output.position.w, output.position.z));
-    }
-
     // Transform the normal to world space (ignoring translation)
     Matrix4x4 normalMatrix = m_model; // This should be the inverse transpose of the model matrix for non-uniform scaling
     Vec4 transformedNormal = normalMatrix * Vec4(input.normal, 0.0f);

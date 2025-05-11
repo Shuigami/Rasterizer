@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
     // Set up point light
     Light pointLight;
     pointLight.type = Light::Type::Point;
-    pointLight.position = Vec3(0.0f, 0.0f, 4.0f);
+    pointLight.position = Vec3(0.0f, 2.0f, 2.0f);
     pointLight.color = Color(255, 255, 255);
     pointLight.intensity = 1.f;
     pointLight.range = 10.0f;
