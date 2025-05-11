@@ -64,10 +64,9 @@ bool Rasterizer::initialize() {
 void Rasterizer::clear(const Color& color) {
     uint32_t clearColor = color.toUint32();
     std::fill(m_colorBuffer.begin(), m_colorBuffer.end(), clearColor);
-    
+
     // Reset depth buffer to maximum value (1.0)
-    // Use std::numeric_limits for maximum precision
-    std::fill(m_depthBuffer.begin(), m_depthBuffer.end(), std::numeric_limits<float>::max());
+    std::fill(m_depthBuffer.begin(), m_depthBuffer.end(), 1.0f);
 }
 
 void Rasterizer::drawPoint(int x, int y, const Color& color) {
@@ -197,16 +196,16 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
         Vec3 edge1 = (out2.worldPos - out1.worldPos);
         Vec3 edge2 = (out3.worldPos - out1.worldPos);
         Vec3 normal = edge1.cross(edge2).normalized();
-        
+
         // Calculate the center of the triangle
         Vec3 triangleCenter = (out1.worldPos + out2.worldPos + out3.worldPos) / 3.0f;
-        
+
         // Get camera position for backface culling
         Vec3 cameraPos = shader.getCameraPosition();
-        
+
         // Use the camera-to-face vector for culling, based on triangle center
         Vec3 viewDir = (cameraPos - triangleCenter).normalized();
-        
+
         // Skip backface culling in wireframe mode
         // Use a slightly negative threshold to prevent z-fighting on coplanar faces
         if (!wireframeMode && normal.dot(viewDir) < -0.001f) {
@@ -233,7 +232,7 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
         if (screen1.x >= m_width && screen2.x >= m_width && screen3.x >= m_width) continue;
         if (screen1.y < 0 && screen2.y < 0 && screen3.y < 0) continue;
         if (screen1.y >= m_height && screen2.y >= m_height && screen3.y >= m_height) continue;
-        
+
         // Calculate bounding box for the triangle
         int minX = std::max(0, std::min(std::min(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
         int maxX = std::min(m_width - 1, std::max(std::max(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
@@ -279,9 +278,15 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
                     float w3 = 1.0f / out3.position.w;
 
                     float wInterp = alpha * w1 + beta * w2 + gamma * w3;
-                    float zInterp = alpha * screen1.z * w1 + beta * screen2.z * w2 + gamma * screen3.z * w3;
+                    // Get z values before perspective division for correct depth interpolation
+                    float z1 = ndc1.z;
+                    float z2 = ndc2.z;
+                    float z3 = ndc3.z;
 
-                    // Depth test
+                    // Properly interpolate z in NDC space with perspective correction
+                    float zInterp = (alpha * z1 * w1 + beta * z2 * w2 + gamma * z3 * w3) / wInterp;
+
+                    // Depth test - the smaller the z value, the closer to camera
                     int index = y * m_width + x;
                     // Apply a small bias based on how front-facing the triangle is
                     float facingRatio = normal.dot(viewDir);
@@ -309,7 +314,7 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
 
                         // Normalize interpolated normal to ensure proper lighting
                         Vec3 normalizedNormal = normal.normalized();
-                        
+
                         // Create fragment input
                         FragmentShaderInput fragIn{worldPos, normalizedNormal, texCoord, baseColor};
 
@@ -322,11 +327,11 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
                     }
                 }
             }
-            
+
             // Draw wireframe if enabled
             if (wireframeMode) {
                 // Use different colors based on whether the face is front or back facing
-                Color wireColor = normal.dot(viewDir) > 0.0f 
+                Color wireColor = normal.dot(viewDir) > 0.0f
                     ? Color(255, 255, 255)  // White for front facing
                     : Color(255, 0, 0);     // Red for back facing
                 drawLine(
@@ -384,7 +389,7 @@ Vec4 Rasterizer::viewportTransform(const Vec4& clipCoords) const {
     float x = (clipCoords.x + 1.0f) * 0.5f * m_width;
     float y = (1.0f - clipCoords.y) * 0.5f * m_height; // Flip y-coordinate
     float z = clipCoords.z; // Depth value in [0, 1]
-    
+
     // Ensure z is within valid range [0, 1]
     z = std::max(0.0f, std::min(1.0f, z));
 
@@ -394,7 +399,7 @@ Vec4 Rasterizer::viewportTransform(const Vec4& clipCoords) const {
 bool Rasterizer::isInsideFrustum(const Vec4& clipCoords) const {
     // Check if the point is inside the view frustum in clip space
     float w = std::abs(clipCoords.w);
-    
+
     // We need at least one vertex to be inside the frustum
     return clipCoords.x >= -w && clipCoords.x <= w &&
            clipCoords.y >= -w && clipCoords.y <= w &&

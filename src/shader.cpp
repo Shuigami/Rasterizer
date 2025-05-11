@@ -15,7 +15,7 @@ VertexShaderOutput Shader::vertexShader(const VertexShaderInput& input) const {
     Vec4 worldPos = m_model * Vec4(input.position, 1.0f);
     Vec4 viewPos = m_view * worldPos;
     output.position = m_projection * viewPos;
-    
+
     // Ensure proper Z values for depth testing
     if (output.position.w != 0.0f) {
         output.position.z = std::max(0.0f, std::min(output.position.w, output.position.z));

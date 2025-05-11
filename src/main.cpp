@@ -73,20 +73,11 @@ int main(int argc, char** argv) {
     // Set up point light
     Light pointLight;
     pointLight.type = Light::Type::Point;
-    pointLight.position = Vec3(2.0f, 0.0f, 2.0f);
+    pointLight.position = Vec3(0.0f, 0.0f, 4.0f);
     pointLight.color = Color(255, 255, 255);
     pointLight.intensity = 1.f;
     pointLight.range = 10.0f;
     phongShader.addLight(pointLight);
-
-    // Add a second point light from a different angle
-    Light pointLight2;
-    pointLight2.type = Light::Type::Point;
-    pointLight2.position = Vec3(-2.0f, 0.0f, 2.0f);
-    pointLight2.color = Color(255, 255, 255);
-    pointLight2.intensity = 1.f;
-    pointLight2.range = 10.0f;
-    phongShader.addLight(pointLight2);
 
     // Main game loop
     bool running = true;
