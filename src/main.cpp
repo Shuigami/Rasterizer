@@ -1,6 +1,5 @@
 #include <iostream>
 #include <memory>
-#include <chrono>
 #include <SDL.h>
 #include "rasterizer.h"
 #include "mesh.h"
@@ -30,9 +29,9 @@ int main(int argc, char** argv) {
 
     // Create camera
     Camera camera(
-        Vec3(0.0f, 0.0f, 5.0f),  // Position
-        Vec3(0.0f, 0.0f, 0.0f),  // Target
-        Vec3(0.0f, 1.0f, 0.0f),  // Up
+        Vec3(0.0f, 2.0f, 5.0f),  // Position
+        Vec3(0.0f, 1.0f, 0.0f),  // Target
+        Vec3(0.0f, 0.980f, -0.196f),  // Up
         60.0f * (3.14159f / 180.0f),  // FOV in radians
         static_cast<float>(WINDOW_WIDTH) / WINDOW_HEIGHT,  // Aspect ratio
         0.1f,  // Near plane
@@ -46,6 +45,9 @@ int main(int argc, char** argv) {
     // Create a sphere mesh
     Mesh sphereMesh;
     sphereMesh.createSphere(16, 16);
+
+    Mesh wellMesh;
+    wellMesh.loadFromOBJ("assets/well.obj");
 
     // Create shaders
     PhongShader phongShader;
@@ -119,8 +121,9 @@ int main(int argc, char** argv) {
 
         // Update matrices
         Matrix4x4 rotationMatrix = Matrix4x4::rotationY(rotation);
-        Matrix4x4 cubeModelMatrix = rotationMatrix * Matrix4x4::translation(0.0f, 0.0f, 0.0f);
-        Matrix4x4 sphereModelMatrix = rotationMatrix * Matrix4x4::translation(1.5f, 0.0f, 0.0f);
+        Matrix4x4 cubeModelMatrix = rotationMatrix * Matrix4x4::translation(-2.0f, 0.0f, 0.0f);
+        Matrix4x4 wellModelMatrix = rotationMatrix * Matrix4x4::scaling(0.1f, 0.1f, 0.1f);
+        Matrix4x4 sphereModelMatrix = rotationMatrix * Matrix4x4::translation(2.0f, 0.0f, 0.0f);
 
         // Set the view and projection matrices for the shaders
         phongShader.setViewMatrix(camera.getViewMatrix());
@@ -140,6 +143,9 @@ int main(int argc, char** argv) {
         // Render the sphere with the texture shader
         phongShader.setModelMatrix(sphereModelMatrix);
         rasterizer.renderMesh(sphereMesh, sphereModelMatrix, phongShader, wireframeMode);
+
+        phongShader.setModelMatrix(wellModelMatrix);
+        rasterizer.renderMesh(wellMesh, wellModelMatrix, phongShader, wireframeMode);
 
         // Present the frame buffer
         rasterizer.present();

@@ -1,7 +1,6 @@
 #include "rasterizer.h"
 #include <algorithm>
 #include <iostream>
-#include <limits>
 
 Rasterizer::Rasterizer(int width, int height)
     : m_width(width), m_height(height), m_window(nullptr), m_renderer(nullptr),
