@@ -139,6 +139,7 @@ public:
     FlatShader(const Color& color);
     Color fragmentShader(const FragmentShaderInput& input) const override;
 
+    void setColor(const Color& color) { m_color = color; }
     void setCameraPosition(const Vec3& cameraPos) { m_cameraPos = cameraPos; }
     Vec3 getCameraPosition() const override { return m_cameraPos; }
 

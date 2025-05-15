@@ -35,10 +35,10 @@ int main(int argc, char** argv) {
     );
 
     Mesh cubeMesh;
-    cubeMesh.createCube();
+    cubeMesh.createCube(Color(200, 50, 50));
 
     Mesh sphereMesh;
-    sphereMesh.createSphere(16, 16);
+    sphereMesh.createSphere(16, 16, Color(50, 50, 200));
 
     Mesh wellMesh;
     wellMesh.loadFromOBJ("assets/moto.obj");

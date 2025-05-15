@@ -29,12 +29,22 @@ public:
     ~Mesh();
 
     bool loadFromOBJ(const std::string& filename);
-    void createCube();
-    void createSphere(int slices, int stacks);
+    void createCube(const Color& color = Color(255, 255, 255));
+    void createSphere(int slices, int stacks, const Color& color = Color(255, 255, 255));
     void generateNormals();
 
+    void setVertexColor(int index, const Color& color);
+    void setAllVertexColors(const Color& color);
+    void setFaceColor(int triangleIndex, const Color& color);
+
+    void setVertexColorsFromPosition();
+    void setRandomVertexColors();
+    void setGradientColors(const Color& startColor, const Color& endColor, bool verticalGradient = true);
+
     const std::vector<Vertex>& getVertices() const { return m_vertices; }
+    std::vector<Vertex>& getVertices() { return m_vertices; }
     const std::vector<Triangle>& getTriangles() const { return m_triangles; }
+    std::vector<Triangle>& getTriangles() { return m_triangles; }
 
 private:
     std::vector<Vertex> m_vertices;

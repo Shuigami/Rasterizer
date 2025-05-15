@@ -77,7 +77,12 @@ bool Mesh::loadFromOBJ(const std::string& filename) {
                     if (!normalIndices.empty() && normalIndices[0] < normals.size()) {
                         v1.normal = normals[normalIndices[0]];
                     }
-                    v1.color = Color(255, 255, 255);
+                    Vec3 normalizedPos = (v1.position + Vec3(1.0f, 1.0f, 1.0f)) * 0.5f;
+                    v1.color = Color(
+                        static_cast<uint8_t>(normalizedPos.x * 255),
+                        static_cast<uint8_t>(normalizedPos.y * 255),
+                        static_cast<uint8_t>(normalizedPos.z * 255)
+                    );
 
                     v2.position = positions[positionIndices[i-1]];
                     if (!texCoordIndices.empty() && texCoordIndices[i-1] < texCoords.size()) {
@@ -86,7 +91,12 @@ bool Mesh::loadFromOBJ(const std::string& filename) {
                     if (!normalIndices.empty() && normalIndices[i-1] < normals.size()) {
                         v2.normal = normals[normalIndices[i-1]];
                     }
-                    v2.color = Color(255, 255, 255);
+                    normalizedPos = (v2.position + Vec3(1.0f, 1.0f, 1.0f)) * 0.5f;
+                    v2.color = Color(
+                        static_cast<uint8_t>(normalizedPos.x * 255),
+                        static_cast<uint8_t>(normalizedPos.y * 255),
+                        static_cast<uint8_t>(normalizedPos.z * 255)
+                    );
 
                     v3.position = positions[positionIndices[i]];
                     if (!texCoordIndices.empty() && texCoordIndices[i] < texCoords.size()) {
@@ -95,7 +105,12 @@ bool Mesh::loadFromOBJ(const std::string& filename) {
                     if (!normalIndices.empty() && normalIndices[i] < normals.size()) {
                         v3.normal = normals[normalIndices[i]];
                     }
-                    v3.color = Color(255, 255, 255);
+                    normalizedPos = (v3.position + Vec3(1.0f, 1.0f, 1.0f)) * 0.5f;
+                    v3.color = Color(
+                        static_cast<uint8_t>(normalizedPos.x * 255),
+                        static_cast<uint8_t>(normalizedPos.y * 255),
+                        static_cast<uint8_t>(normalizedPos.z * 255)
+                    );
 
                     int v1Index = m_vertices.size();
                     m_vertices.push_back(v1);
@@ -119,7 +134,7 @@ bool Mesh::loadFromOBJ(const std::string& filename) {
     return true;
 }
 
-void Mesh::createCube() {
+void Mesh::createCube(const Color& color) {
     m_vertices.clear();
     m_triangles.clear();
 
@@ -167,7 +182,7 @@ void Mesh::createCube() {
             vertex.position = vertices[faces[f][v]];
             vertex.normal = normals[f];
             vertex.texCoord = texCoords[v];
-            vertex.color = Color(255, 255, 255);
+            vertex.color = color;
             m_vertices.push_back(vertex);
         }
 
@@ -176,7 +191,7 @@ void Mesh::createCube() {
     }
 }
 
-void Mesh::createSphere(int slices, int stacks) {
+void Mesh::createSphere(int slices, int stacks, const Color& color) {
     m_vertices.clear();
     m_triangles.clear();
 
@@ -200,7 +215,7 @@ void Mesh::createSphere(int slices, int stacks) {
             vertex.position = Vec3(x, y, z) * radius;
             vertex.normal = Vec3(x, y, z).normalized();
             vertex.texCoord = Vec2(float(slice) / float(slices), float(stack) / float(stacks));
-            vertex.color = Color(255, 255, 255);
+            vertex.color = color;
 
             m_vertices.push_back(vertex);
         }
@@ -240,5 +255,77 @@ void Mesh::generateNormals() {
 
     for (auto& vertex : m_vertices) {
         vertex.normal = vertex.normal.normalized();
+    }
+}
+
+void Mesh::setVertexColor(int index, const Color& color) {
+    if (index >= 0 && index < m_vertices.size()) {
+        m_vertices[index].color = color;
+    }
+}
+
+void Mesh::setAllVertexColors(const Color& color) {
+    for (auto& vertex : m_vertices) {
+        vertex.color = color;
+    }
+}
+
+void Mesh::setFaceColor(int triangleIndex, const Color& color) {
+    if (triangleIndex >= 0 && triangleIndex < m_triangles.size()) {
+        const Triangle& tri = m_triangles[triangleIndex];
+        m_vertices[tri.v1].color = color;
+        m_vertices[tri.v2].color = color;
+        m_vertices[tri.v3].color = color;
+    }
+}
+
+void Mesh::setVertexColorsFromPosition() {
+    for (auto& vertex : m_vertices) {
+        Vec3 normalizedPos = (vertex.position + Vec3(0.5f, 0.5f, 0.5f));
+
+        vertex.color = Color(
+            static_cast<uint8_t>(std::abs(normalizedPos.x) * 255),
+            static_cast<uint8_t>(std::abs(normalizedPos.y) * 255),
+            static_cast<uint8_t>(std::abs(normalizedPos.z) * 255)
+        );
+    }
+}
+
+void Mesh::setRandomVertexColors() {
+    srand(static_cast<unsigned int>(time(nullptr)));
+
+    for (auto& vertex : m_vertices) {
+        vertex.color = Color(
+            static_cast<uint8_t>(rand() % 256),
+            static_cast<uint8_t>(rand() % 256),
+            static_cast<uint8_t>(rand() % 256)
+        );
+    }
+}
+
+void Mesh::setGradientColors(const Color& startColor, const Color& endColor, bool verticalGradient) {
+    if (m_vertices.empty()) return;
+
+    float minVal = verticalGradient ? m_vertices[0].position.y : m_vertices[0].position.x;
+    float maxVal = minVal;
+
+    for (const auto& vertex : m_vertices) {
+        float value = verticalGradient ? vertex.position.y : vertex.position.x;
+        minVal = std::min(minVal, value);
+        maxVal = std::max(maxVal, value);
+    }
+
+    float range = maxVal - minVal;
+    if (range < 0.0001f) range = 1.0f;
+
+    for (auto& vertex : m_vertices) {
+        float t = ((verticalGradient ? vertex.position.y : vertex.position.x) - minVal) / range;
+        t = std::max(0.0f, std::min(1.0f, t));
+
+        vertex.color = Color(
+            static_cast<uint8_t>(startColor.r * (1.0f - t) + endColor.r * t),
+            static_cast<uint8_t>(startColor.g * (1.0f - t) + endColor.g * t),
+            static_cast<uint8_t>(startColor.b * (1.0f - t) + endColor.b * t)
+        );
     }
 }
