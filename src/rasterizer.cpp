@@ -6,9 +6,8 @@ Rasterizer::Rasterizer(int width, int height)
     : m_width(width), m_height(height), m_window(nullptr), m_renderer(nullptr),
       m_frameBuffer(nullptr), m_quit(false) {
 
-    // Initialize buffers
     m_colorBuffer.resize(width * height, 0);
-    m_depthBuffer.resize(width * height, 1.0f); // Initialize to 1.0f (furthest possible depth)
+    m_depthBuffer.resize(width * height, 1.0f);
 }
 
 Rasterizer::~Rasterizer() {
@@ -24,7 +23,6 @@ Rasterizer::~Rasterizer() {
 }
 
 bool Rasterizer::initialize() {
-    // Create window
     m_window = SDL_CreateWindow(
         "Software Rasterizer",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -37,14 +35,12 @@ bool Rasterizer::initialize() {
         return false;
     }
 
-    // Create renderer
     m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
     if (!m_renderer) {
         std::cerr << "Failed to create renderer: " << SDL_GetError() << std::endl;
         return false;
     }
 
-    // Create frame buffer texture
     m_frameBuffer = SDL_CreateTexture(
         m_renderer,
         SDL_PIXELFORMAT_ARGB8888,
@@ -64,22 +60,18 @@ void Rasterizer::clear(const Color& color) {
     uint32_t clearColor = color.toUint32();
     std::fill(m_colorBuffer.begin(), m_colorBuffer.end(), clearColor);
 
-    // Reset depth buffer to maximum value (1.0)
     std::fill(m_depthBuffer.begin(), m_depthBuffer.end(), 1.0f);
 }
 
 void Rasterizer::drawPoint(int x, int y, const Color& color) {
-    // Check if the point is within the viewport
     if (x < 0 || x >= m_width || y < 0 || y >= m_height) {
         return;
     }
 
-    // Draw the pixel
     m_colorBuffer[y * m_width + x] = color.toUint32();
 }
 
 void Rasterizer::drawLine(int x1, int y1, int x2, int y2, const Color& color) {
-    // Bresenham's line algorithm
     int dx = std::abs(x2 - x1);
     int dy = std::abs(y2 - y1);
     int sx = (x1 < x2) ? 1 : -1;
@@ -106,7 +98,6 @@ void Rasterizer::drawLine(int x1, int y1, int x2, int y2, const Color& color) {
 }
 
 void Rasterizer::drawTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, const Color& color) {
-    // Draw the three sides of the triangle
     drawLine(
         static_cast<int>(v1.x), static_cast<int>(v1.y),
         static_cast<int>(v2.x), static_cast<int>(v2.y),
@@ -127,16 +118,13 @@ void Rasterizer::drawTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, co
 }
 
 void Rasterizer::fillTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, const Color& color) {
-    // Calculate bounding box
     int minX = std::max(0, std::min(std::min(static_cast<int>(v1.x), static_cast<int>(v2.x)), static_cast<int>(v3.x)));
     int maxX = std::min(m_width - 1, std::max(std::max(static_cast<int>(v1.x), static_cast<int>(v2.x)), static_cast<int>(v3.x)));
     int minY = std::max(0, std::min(std::min(static_cast<int>(v1.y), static_cast<int>(v2.y)), static_cast<int>(v3.y)));
     int maxY = std::min(m_height - 1, std::max(std::max(static_cast<int>(v1.y), static_cast<int>(v2.y)), static_cast<int>(v3.y)));
 
-    // Iterate over each pixel in the bounding box
     for (int y = minY; y <= maxY; y++) {
         for (int x = minX; x <= maxX; x++) {
-            // Barycentric coordinates
             Vec2 p(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f);
 
             Vec2 a(v1.x, v1.y);
@@ -162,7 +150,6 @@ void Rasterizer::fillTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, co
             float w = (d00 * d21 - d01 * d20) / denom;
             float u = 1.0f - v - w;
 
-            // Check if the point is inside the triangle
             if (u >= 0.0f && v >= 0.0f && w >= 0.0f && (u + v + w) <= 1.0f) {
                 drawPoint(x, y, color);
             }
@@ -170,91 +157,71 @@ void Rasterizer::fillTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, co
     }
 }
 
-void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, const Shader& shader, bool wireframeMode) {
+void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wireframeMode) {
     const std::vector<Vertex>& vertices = mesh.getVertices();
     const std::vector<Triangle>& triangles = mesh.getTriangles();
 
-    // Process each triangle
     for (const Triangle& triangle : triangles) {
-        // Get the vertices of the triangle
         const Vertex& v1 = vertices[triangle.v1];
         const Vertex& v2 = vertices[triangle.v2];
         const Vertex& v3 = vertices[triangle.v3];
 
-        // Create vertex shader inputs
         VertexShaderInput in1{v1.position, v1.normal, v1.texCoord, v1.color};
         VertexShaderInput in2{v2.position, v2.normal, v2.texCoord, v2.color};
         VertexShaderInput in3{v3.position, v3.normal, v3.texCoord, v3.color};
 
-        // Process vertices through the vertex shader
         VertexShaderOutput out1 = shader.vertexShader(in1);
         VertexShaderOutput out2 = shader.vertexShader(in2);
         VertexShaderOutput out3 = shader.vertexShader(in3);
 
-        // Get vertex normals first - important for spheres
         Vec3 vertexNormal1 = out1.normal.normalized();
         Vec3 vertexNormal2 = out2.normal.normalized();
         Vec3 vertexNormal3 = out3.normal.normalized();
 
-        // Calculate the center of the triangle
         Vec3 triangleCenter = (out1.worldPos + out2.worldPos + out3.worldPos) / 3.0f;
 
-        // Get camera position for backface culling
         Vec3 cameraPos = shader.getCameraPosition();
 
-        // Use the camera-to-face vector for culling, based on triangle center
         Vec3 viewDir = (cameraPos - triangleCenter).normalized();
 
-        // For spheres: calculate face normal from vertices
         Vec3 edge1 = (out2.worldPos - out1.worldPos);
         Vec3 edge2 = (out3.worldPos - out1.worldPos);
         Vec3 normal = edge1.cross(edge2).normalized();
 
-        // For sphere culling: use BOTH vertex normals and triangle normal
-        // Average the vertex normals for a better test for spheres
         Vec3 avgVertexNormal = (vertexNormal1 + vertexNormal2 + vertexNormal3).normalized();
         float vertexNormalDot = avgVertexNormal.dot(viewDir);
         float faceNormalDot = normal.dot(viewDir);
 
-        // Use the better of the two tests to avoid culling visible triangles
         float bestDotProduct = std::max(vertexNormalDot, faceNormalDot);
 
-        // Only in filled mode, cull triangles clearly facing away
         if (!wireframeMode && bestDotProduct < -0.7f) {
-            continue; // Skip triangles facing strongly away from the camera
+            continue;
         }
 
-        // Check if all vertices are outside the frustum
         if (!isInsideFrustum(out1.position) && !isInsideFrustum(out2.position) && !isInsideFrustum(out3.position)) {
             continue;
         }
 
-        // Perspective divide to get normalized device coordinates
         Vec4 ndc1 = out1.position / out1.position.w;
         Vec4 ndc2 = out2.position / out2.position.w;
         Vec4 ndc3 = out3.position / out3.position.w;
 
-        // Viewport transform
         Vec4 screen1 = viewportTransform(ndc1);
         Vec4 screen2 = viewportTransform(ndc2);
         Vec4 screen3 = viewportTransform(ndc3);
 
-        // Ensure the triangle is visible in the viewport before rasterizing
         if (screen1.x < 0 && screen2.x < 0 && screen3.x < 0) continue;
         if (screen1.x >= m_width && screen2.x >= m_width && screen3.x >= m_width) continue;
         if (screen1.y < 0 && screen2.y < 0 && screen3.y < 0) continue;
         if (screen1.y >= m_height && screen2.y >= m_height && screen3.y >= m_height) continue;
 
-        // Calculate bounding box for the triangle
         int minX = std::max(0, std::min(std::min(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
         int maxX = std::min(m_width - 1, std::max(std::max(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
         int minY = std::max(0, std::min(std::min(static_cast<int>(screen1.y), static_cast<int>(screen2.y)), static_cast<int>(screen3.y)));
         int maxY = std::min(m_height - 1, std::max(std::max(static_cast<int>(screen1.y), static_cast<int>(screen2.y)), static_cast<int>(screen3.y)));
 
-        // Iterate over each pixel in the bounding box
         for (int y = minY; y <= maxY; y++) {
             for (int x = minX; x <= maxX; x++) {
-                // Barycentric coordinates
                 Vec2 p(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f);
 
                 Vec2 a(screen1.x, screen1.y);
@@ -280,37 +247,29 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
                 float gamma = (d00 * d21 - d01 * d20) / denom;
                 float alpha = 1.0f - beta - gamma;
 
-                // Check if the point is inside the triangle
                 if (alpha >= 0.0f && beta >= 0.0f && gamma >= 0.0f &&
                     (alpha + beta + gamma) <= 1.0f + 1e-5f) {
 
-                    // Perspective correct interpolation weights
                     float w1 = 1.0f / out1.position.w;
                     float w2 = 1.0f / out2.position.w;
                     float w3 = 1.0f / out3.position.w;
 
                     float wInterp = alpha * w1 + beta * w2 + gamma * w3;
-                    // Get z values before perspective division for correct depth interpolation
                     float z1 = ndc1.z;
                     float z2 = ndc2.z;
                     float z3 = ndc3.z;
 
-                    // Properly interpolate z in NDC space with perspective correction
                     float zInterp = (alpha * z1 * w1 + beta * z2 * w2 + gamma * z3 * w3) / wInterp;
 
-                    // Depth test - the smaller the z value, the closer to camera
                     int index = y * m_width + x;
-                    // Apply a small bias based on how front-facing the triangle is
                     float facingRatio = normal.dot(viewDir);
                     float bias = 0.00001f * (1.0f - facingRatio);
                     float depthValue = zInterp - bias;
                     if (depthValue < m_depthBuffer[index]) {
-                        // Perspective-correct interpolation
                         alpha *= w1 / wInterp;
                         beta *= w2 / wInterp;
                         gamma *= w3 / wInterp;
 
-                        // Interpolate vertex data
                         Vec3 worldPos = out1.worldPos * alpha + out2.worldPos * beta + out3.worldPos * gamma;
                         Vec3 normal = (out1.normal * alpha + out2.normal * beta + out3.normal * gamma).normalized();
                         Vec2 texCoord = Vec2(
@@ -324,28 +283,22 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
                             static_cast<uint8_t>(out1.color.a * alpha + out2.color.a * beta + out3.color.a * gamma)
                         );
 
-                        // Normalize interpolated normal to ensure proper lighting
                         Vec3 normalizedNormal = normal.normalized();
 
-                        // Create fragment input
                         FragmentShaderInput fragIn{worldPos, normalizedNormal, texCoord, baseColor};
 
-                        // Process fragment through the fragment shader
                         Color pixelColor = shader.fragmentShader(fragIn);
 
-                        // Update buffers
                         m_colorBuffer[index] = pixelColor.toUint32();
                         m_depthBuffer[index] = depthValue;
                     }
                 }
             }
 
-            // Draw wireframe if enabled
             if (wireframeMode) {
-                // Use different colors based on whether the face is front or back facing
                 Color wireColor = normal.dot(viewDir) > 0.0f
-                    ? Color(255, 255, 255)  // White for front facing
-                    : Color(255, 0, 0);     // Red for back facing
+                    ? Color(255, 255, 255)
+                    : Color(255, 0, 0);
                 drawLine(
                     static_cast<int>(screen1.x), static_cast<int>(screen1.y),
                     static_cast<int>(screen2.x), static_cast<int>(screen2.y),
@@ -367,16 +320,12 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, cons
 }
 
 void Rasterizer::present() {
-    // Update texture with the color buffer
     SDL_UpdateTexture(m_frameBuffer, nullptr, m_colorBuffer.data(), m_width * sizeof(uint32_t));
 
-    // Clear renderer
     SDL_RenderClear(m_renderer);
 
-    // Render the frame buffer
     SDL_RenderCopy(m_renderer, m_frameBuffer, nullptr, nullptr);
 
-    // Present renderer
     SDL_RenderPresent(m_renderer);
 }
 
@@ -399,26 +348,21 @@ void Rasterizer::handleEvents() {
 
 Vec4 Rasterizer::viewportTransform(const Vec4& clipCoords) const {
     float x = (clipCoords.x + 1.0f) * 0.5f * m_width;
-    float y = (1.0f - clipCoords.y) * 0.5f * m_height; // Flip y-coordinate
+    float y = (1.0f - clipCoords.y) * 0.5f * m_height;
 
-    // Transform Z from [-1,1] to [0,1] for the depth buffer
     float z = (clipCoords.z + 1.0f) * 0.5f;
 
-    // Ensure z is strictly within valid range [0, 1]
     z = std::max(0.0001f, std::min(0.9999f, z));
 
     return Vec4(x, y, z, clipCoords.w);
 }
 
 bool Rasterizer::isInsideFrustum(const Vec4& clipCoords) const {
-    // Check if the point is inside the view frustum in clip space
     float w = std::abs(clipCoords.w);
 
-    // Add a small margin to avoid clipping at frustum boundaries
     float margin = 0.1f * w;
 
-    // We need at least one vertex to be inside the frustum
     return clipCoords.x >= -(w + margin) && clipCoords.x <= (w + margin) &&
            clipCoords.y >= -(w + margin) && clipCoords.y <= (w + margin) &&
-           clipCoords.z >= -w && clipCoords.z <= w; // Allow full Z-range for better frustum handling
+           clipCoords.z >= -w && clipCoords.z <= w;
 }

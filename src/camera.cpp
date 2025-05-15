@@ -76,27 +76,19 @@ void Camera::moveUp(float distance) {
 }
 
 void Camera::rotateYaw(float angle) {
-    // Rotate around the global up vector
     Vec3 direction = m_target - m_position;
 
-    // Create rotation matrix
     Matrix4x4 rotation = Matrix4x4::rotationY(angle);
-
-    // Apply rotation to the direction vector
     Vec4 rotatedDir = rotation * Vec4(direction, 0.0f);
-
-    // Update target position
     m_target = m_position + Vec3(rotatedDir.x, rotatedDir.y, rotatedDir.z);
 
     m_viewDirty = true;
 }
 
 void Camera::rotatePitch(float angle) {
-    // Rotate around the local right vector
     Vec3 direction = m_target - m_position;
     Vec3 right = direction.cross(m_up).normalized();
 
-    // Create rotation matrix around right axis
     float cosA = std::cos(angle);
     float sinA = std::sin(angle);
 
@@ -106,10 +98,8 @@ void Camera::rotatePitch(float angle) {
         direction.y * sinA + direction.z * cosA
     );
 
-    // Update target position
     m_target = m_position + rotatedDir;
 
-    // Recalculate up vector to keep it perpendicular to the view direction
     Vec3 newDirection = (m_target - m_position).normalized();
     m_up = right.cross(newDirection).normalized();
 

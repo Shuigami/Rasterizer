@@ -2,7 +2,7 @@
 
 #include <cmath>
 #include <algorithm>
-#include <cstdint>  // Added for uint8_t and uint32_t
+#include <cstdint>
 
 struct Color {
     uint8_t r, g, b, a;

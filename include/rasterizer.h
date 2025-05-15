@@ -2,11 +2,8 @@
 
 #include <SDL.h>
 #include <vector>
-#include <memory>
 #include "vector.h"
-#include "matrix.h"
 #include "mesh.h"
-#include "camera.h"
 #include "shader.h"
 
 class Rasterizer {
@@ -20,7 +17,7 @@ public:
     void drawLine(int x1, int y1, int x2, int y2, const Color& color);
     void drawTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, const Color& color);
     void fillTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, const Color& color);
-    void renderMesh(const Mesh& mesh, const Matrix4x4& modelMatrix, const Shader& shader, bool wireframeMode = false);
+    void renderMesh(const Mesh& mesh, const Shader& shader, bool wireframeMode = false);
     void present();
     bool shouldQuit() const;
     void handleEvents();

@@ -17,11 +17,8 @@ set(SOURCES
     src/main.cpp
     src/rasterizer.cpp
     src/mesh.cpp
-    # src/vector.cpp
-    # src/matrix.cpp
     src/camera.cpp
     src/shader.cpp
-    src/texture.cpp
 )
 
 # # Define executable and link with SDL2 and SDL2_image

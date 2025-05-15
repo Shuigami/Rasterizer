@@ -2,8 +2,7 @@
 
 #include "vector.h"
 #include "matrix.h"
-#include "texture.h"
-#include <memory>
+#include <vector>
 
 struct VertexShaderInput {
     Vec3 position;
@@ -19,7 +18,6 @@ struct VertexShaderOutput {
     Vec2 texCoord;
     Color color;
 
-    // Interpolation between two vertex outputs
     static VertexShaderOutput interpolate(const VertexShaderOutput& v1, const VertexShaderOutput& v2, float t) {
         VertexShaderOutput result;
         result.position = v1.position * (1.0f - t) + v2.position * t;
@@ -30,7 +28,6 @@ struct VertexShaderOutput {
             v1.texCoord.y * (1.0f - t) + v2.texCoord.y * t
         );
 
-        // Interpolate colors
         float r = v1.color.r * (1.0f - t) + v2.color.r * t;
         float g = v1.color.g * (1.0f - t) + v2.color.g * t;
         float b = v1.color.b * (1.0f - t) + v2.color.b * t;
@@ -46,7 +43,6 @@ struct VertexShaderOutput {
         return result;
     }
 
-    // Barycentric interpolation for triangles
     static VertexShaderOutput barycentricInterpolate(
         const VertexShaderOutput& v1,
         const VertexShaderOutput& v2,
@@ -62,7 +58,6 @@ struct VertexShaderOutput {
             v1.texCoord.y * w1 + v2.texCoord.y * w2 + v3.texCoord.y * w3
         );
 
-        // Interpolate colors
         float r = v1.color.r * w1 + v2.color.r * w2 + v3.color.r * w3;
         float g = v1.color.g * w1 + v2.color.g * w2 + v3.color.g * w3;
         float b = v1.color.b * w1 + v2.color.b * w2 + v3.color.b * w3;
@@ -94,12 +89,12 @@ struct Light {
     };
 
     Type type;
-    Vec3 position;    // Used for point and spot lights
-    Vec3 direction;   // Used for directional and spot lights
+    Vec3 position;
+    Vec3 direction;
     Color color;
     float intensity;
-    float range;      // Used for point and spot lights
-    float spotAngle;  // Used for spot lights (in radians)
+    float range;
+    float spotAngle;
 
     Light()
         : type(Type::Directional),
@@ -119,41 +114,31 @@ public:
     void setModelMatrix(const Matrix4x4& model) { m_model = model; }
     void setViewMatrix(const Matrix4x4& view) { m_view = view; }
     void setProjectionMatrix(const Matrix4x4& projection) { m_projection = projection; }
-    void setTexture(const std::shared_ptr<Texture>& texture) { m_texture = texture; }
-    
-    // Get the camera position (used for backface culling)
+
     virtual Vec3 getCameraPosition() const { return Vec3(0.0f, 0.0f, 0.0f); }
 
-    // Add a light to the scene
     void addLight(const Light& light) {
         m_lights.push_back(light);
     }
-
-    // Clear all lights
     void clearLights() {
         m_lights.clear();
     }
 
-    // Vertex shader - transforms vertices
     virtual VertexShaderOutput vertexShader(const VertexShaderInput& input) const;
-
-    // Fragment shader - computes pixel color
     virtual Color fragmentShader(const FragmentShaderInput& input) const;
 
 protected:
     Matrix4x4 m_model;
     Matrix4x4 m_view;
     Matrix4x4 m_projection;
-    std::shared_ptr<Texture> m_texture;
     std::vector<Light> m_lights;
 };
 
-// Flat color shader
 class FlatShader : public Shader {
 public:
     FlatShader(const Color& color);
     Color fragmentShader(const FragmentShaderInput& input) const override;
-    
+
     void setCameraPosition(const Vec3& cameraPos) { m_cameraPos = cameraPos; }
     Vec3 getCameraPosition() const override { return m_cameraPos; }
 
@@ -162,20 +147,6 @@ private:
     Vec3 m_cameraPos;
 };
 
-// Texture shader
-class TextureShader : public Shader {
-public:
-    TextureShader();
-    Color fragmentShader(const FragmentShaderInput& input) const override;
-    
-    void setCameraPosition(const Vec3& cameraPos) { m_cameraPos = cameraPos; }
-    Vec3 getCameraPosition() const override { return m_cameraPos; }
-
-private:
-    Vec3 m_cameraPos;
-};
-
-// Phong lighting shader
 class PhongShader : public Shader {
 public:
     PhongShader();
@@ -185,7 +156,7 @@ public:
     void setSpecular(float specular) { m_specular = specular; }
     void setShininess(float shininess) { m_shininess = shininess; }
     void setCameraPosition(const Vec3& cameraPos) { m_cameraPos = cameraPos; }
-    
+
     Vec3 getCameraPosition() const override { return m_cameraPos; }
 
     Color fragmentShader(const FragmentShaderInput& input) const override;
@@ -196,4 +167,34 @@ private:
     float m_specular;
     float m_shininess;
     Vec3 m_cameraPos;
+};
+
+class ToonShader : public Shader {
+public:
+    ToonShader();
+
+    void setAmbient(float ambient) { m_ambient = ambient; }
+    void setDiffuse(float diffuse) { m_diffuse = diffuse; }
+    void setSpecular(float specular) { m_specular = specular; }
+    void setShininess(float shininess) { m_shininess = shininess; }
+    void setCameraPosition(const Vec3& cameraPos) { m_cameraPos = cameraPos; }
+    void setLevels(int levels) { m_levels = levels; }
+    void setOutlineThickness(float thickness) { m_outlineThickness = thickness; }
+    void setOutlineColor(const Color& color) { m_outlineColor = color; }
+    void setEnableOutline(bool enable) { m_enableOutline = enable; }
+
+    Vec3 getCameraPosition() const override { return m_cameraPos; }
+
+    Color fragmentShader(const FragmentShaderInput& input) const override;
+
+private:
+    float m_ambient;
+    float m_diffuse;
+    float m_specular;
+    float m_shininess;
+    Vec3 m_cameraPos;
+    int m_levels;
+    float m_outlineThickness;
+    Color m_outlineColor;
+    bool m_enableOutline;
 };

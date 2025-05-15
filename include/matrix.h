@@ -6,11 +6,9 @@
 
 class Matrix4x4 {
 public:
-    // Matrix is stored in row-major order
     std::array<float, 16> m;
 
     Matrix4x4() {
-        // Initialize as identity matrix
         m = {
             1.0f, 0.0f, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f, 0.0f,
@@ -145,47 +143,5 @@ public:
             m[8] * v.x + m[9] * v.y + m[10] * v.z + m[11] * v.w,
             m[12] * v.x + m[13] * v.y + m[14] * v.z + m[15] * v.w
         );
-    }
-
-    Matrix4x4 inverse() const {
-        // Calculate the inverse using the adjugate method
-        // This is a naive implementation and could be optimized
-        Matrix4x4 result;
-
-        // Calculate cofactors and build adjugate
-        // (This is a simplified version for demonstration)
-        // In a production environment, use a more robust method
-
-        // Get the determinant
-        float det = determinant();
-        if (std::abs(det) < 1e-6f) {
-            // Matrix is singular, return identity
-            return Matrix4x4::identity();
-        }
-
-        // Scale adjugate by reciprocal of determinant
-        for (int i = 0; i < 16; i++) {
-            result.m[i] /= det;
-        }
-
-        return result;
-    }
-
-    float determinant() const {
-        // Simplified determinant calculation for a 4x4 matrix
-        // This could be optimized for a production environment
-        return 1.0f; // Placeholder
-    }
-
-    Matrix4x4 transpose() const {
-        Matrix4x4 result;
-
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-                result(j, i) = (*this)(i, j);
-            }
-        }
-
-        return result;
     }
 };
