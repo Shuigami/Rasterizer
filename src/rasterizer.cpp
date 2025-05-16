@@ -2,6 +2,17 @@
 #include <algorithm>
 #include <iostream>
 
+// Define a struct to track vertex positions and attributes during clipping
+struct VertexWithAttributes {
+    Vec4 position;
+    VertexShaderOutput attributes;
+    
+    VertexWithAttributes() {}
+    
+    VertexWithAttributes(const Vec4& pos, const VertexShaderOutput& attr) 
+        : position(pos), attributes(attr) {}
+};
+
 Rasterizer::Rasterizer(int width, int height)
     : m_width(width), m_height(height), m_window(nullptr), m_renderer(nullptr),
       m_frameBuffer(nullptr), m_quit(false) {
@@ -157,9 +168,11 @@ void Rasterizer::fillTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, co
     }
 }
 
-// Sutherland-Hodgman Polygon Clipping for one plane
-std::vector<Vec4> clipAgainstPlane(const std::vector<Vec4>& vertices, int planeIndex, int sign) {
-    std::vector<Vec4> result;
+// Sutherland-Hodgman Polygon Clipping with attribute interpolation
+std::vector<VertexWithAttributes> clipAgainstPlaneWithAttributes(
+    const std::vector<VertexWithAttributes>& vertices, int planeIndex, int sign) {
+    
+    std::vector<VertexWithAttributes> result;
     if (vertices.empty()) return result;
     
     size_t numVertices = vertices.size();
@@ -167,95 +180,93 @@ std::vector<Vec4> clipAgainstPlane(const std::vector<Vec4>& vertices, int planeI
         size_t currIdx = i;
         size_t nextIdx = (i + 1) % numVertices;
         
-        const Vec4& currVertex = vertices[currIdx];
-        const Vec4& nextVertex = vertices[nextIdx];
+        const VertexWithAttributes& currVertex = vertices[currIdx];
+        const VertexWithAttributes& nextVertex = vertices[nextIdx];
         
-        // Determine if vertices are inside the clip plane
         float currComp, nextComp;
-        if (planeIndex == 0) { // X plane
-            currComp = sign * currVertex.x;
-            nextComp = sign * nextVertex.x;
-        } else if (planeIndex == 1) { // Y plane
-            currComp = sign * currVertex.y;
-            nextComp = sign * nextVertex.y;
-        } else if (planeIndex == 2) { // Z plane
-            currComp = sign * currVertex.z;
-            nextComp = sign * nextVertex.z;
-        } else { // W plane (near plane)
-            currComp = currVertex.z; // Near plane: z >= -w
-            nextComp = nextVertex.z;
-        }
-        
-        // Check if inside the frustum
-        bool currInside, nextInside;
-        if (planeIndex == 3) { // Special case for near plane
-            currInside = currVertex.z >= -currVertex.w;
-            nextInside = nextVertex.z >= -nextVertex.w;
+        if (planeIndex == 0) {
+            currComp = sign * currVertex.position.x;
+            nextComp = sign * nextVertex.position.x;
+        } else if (planeIndex == 1) {
+            currComp = sign * currVertex.position.y;
+            nextComp = sign * nextVertex.position.y;
+        } else if (planeIndex == 2) {
+            currComp = sign * currVertex.position.z;
+            nextComp = sign * nextVertex.position.z;
         } else {
-            currInside = currComp <= currVertex.w;
-            nextInside = nextComp <= nextVertex.w;
+            currComp = currVertex.position.z;
+            nextComp = nextVertex.position.z;
         }
         
-        // Both vertices are outside: add none
+        bool currInside, nextInside;
+        if (planeIndex == 3) {
+            currInside = currVertex.position.z >= -currVertex.position.w;
+            nextInside = nextVertex.position.z >= -nextVertex.position.w;
+        } else {
+            currInside = currComp <= currVertex.position.w;
+            nextInside = nextComp <= nextVertex.position.w;
+        }
+        
         if (!currInside && !nextInside) {
             continue;
         }
         
-        // Current outside, next inside: add intersection and next
         if (!currInside && nextInside) {
             float t;
-            if (planeIndex == 0) { // X plane
-                t = (sign * currVertex.w - currVertex.x) / ((sign * currVertex.w - currVertex.x) - (sign * nextVertex.w - nextVertex.x));
-            } else if (planeIndex == 1) { // Y plane
-                t = (sign * currVertex.w - currVertex.y) / ((sign * currVertex.w - currVertex.y) - (sign * nextVertex.w - nextVertex.y));
-            } else if (planeIndex == 2) { // Z plane
-                t = (sign * currVertex.w - currVertex.z) / ((sign * currVertex.w - currVertex.z) - (sign * nextVertex.w - nextVertex.z));
-            } else { // W plane (near plane)
-                t = (currVertex.z + currVertex.w) / ((currVertex.z + currVertex.w) - (nextVertex.z + nextVertex.w));
+            if (planeIndex == 3) {
+                t = (currVertex.position.z + currVertex.position.w) / 
+                    ((currVertex.position.z + currVertex.position.w) - (nextVertex.position.z + nextVertex.position.w));
+            } else {
+                t = (sign * currVertex.position.w - currComp) / 
+                    ((sign * currVertex.position.w - currComp) - (sign * nextVertex.position.w - nextComp));
             }
             
-            Vec4 intersection = currVertex + (nextVertex - currVertex) * t;
-            result.push_back(intersection);
+            Vec4 interpPos = currVertex.position + (nextVertex.position - currVertex.position) * t;
+            
+            VertexShaderOutput interpAttrs = VertexShaderOutput::lerp(currVertex.attributes, nextVertex.attributes, t);
+            
+            result.push_back(VertexWithAttributes(interpPos, interpAttrs));
             result.push_back(nextVertex);
         }
         
-        // Current inside, next inside: add only next
         else if (currInside && nextInside) {
             result.push_back(nextVertex);
         }
         
-        // Current inside, next outside: add only intersection
         else if (currInside && !nextInside) {
             float t;
-            if (planeIndex == 0) { // X plane
-                t = (sign * currVertex.w - currVertex.x) / ((sign * currVertex.w - currVertex.x) - (sign * nextVertex.w - nextVertex.x));
-            } else if (planeIndex == 1) { // Y plane
-                t = (sign * currVertex.w - currVertex.y) / ((sign * currVertex.w - currVertex.y) - (sign * nextVertex.w - nextVertex.y));
-            } else if (planeIndex == 2) { // Z plane
-                t = (sign * currVertex.w - currVertex.z) / ((sign * currVertex.w - currVertex.z) - (sign * nextVertex.w - nextVertex.z));
-            } else { // W plane (near plane)
-                t = (currVertex.z + currVertex.w) / ((currVertex.z + currVertex.w) - (nextVertex.z + nextVertex.w));
+            if (planeIndex == 3) {
+                t = (currVertex.position.z + currVertex.position.w) / 
+                    ((currVertex.position.z + currVertex.position.w) - (nextVertex.position.z + nextVertex.position.w));
+            } else {
+                t = (sign * currVertex.position.w - currComp) / 
+                    ((sign * currVertex.position.w - currComp) - (sign * nextVertex.position.w - nextComp));
             }
             
-            Vec4 intersection = currVertex + (nextVertex - currVertex) * t;
-            result.push_back(intersection);
+            Vec4 interpPos = currVertex.position + (nextVertex.position - currVertex.position) * t;
+            
+            VertexShaderOutput interpAttrs = VertexShaderOutput::lerp(currVertex.attributes, nextVertex.attributes, t);
+            
+            result.push_back(VertexWithAttributes(interpPos, interpAttrs));
         }
     }
     
     return result;
 }
 
-// Clip a triangle against all 6 planes of the view frustum
-std::vector<Vec4> clipTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3) {
-    std::vector<Vec4> vertices = {v1, v2, v3};
+std::vector<VertexWithAttributes> clipTriangleWithAttributes(
+    const VertexWithAttributes& v1, 
+    const VertexWithAttributes& v2, 
+    const VertexWithAttributes& v3) {
     
-    // Clip against all 6 planes of the view frustum
-    vertices = clipAgainstPlane(vertices, 0, 1);   // Right plane (x <= w)
-    vertices = clipAgainstPlane(vertices, 0, -1);  // Left plane (-x <= w)
-    vertices = clipAgainstPlane(vertices, 1, 1);   // Top plane (y <= w)
-    vertices = clipAgainstPlane(vertices, 1, -1);  // Bottom plane (-y <= w)
-    vertices = clipAgainstPlane(vertices, 2, 1);   // Far plane (z <= w)
-    vertices = clipAgainstPlane(vertices, 3, 0);   // Near plane (z >= -w)
+    std::vector<VertexWithAttributes> vertices = {v1, v2, v3};
+    
+    vertices = clipAgainstPlaneWithAttributes(vertices, 0, 1);
+    vertices = clipAgainstPlaneWithAttributes(vertices, 0, -1);
+    vertices = clipAgainstPlaneWithAttributes(vertices, 1, 1);
+    vertices = clipAgainstPlaneWithAttributes(vertices, 1, -1);
+    vertices = clipAgainstPlaneWithAttributes(vertices, 2, 1);
+    vertices = clipAgainstPlaneWithAttributes(vertices, 3, 0);
     
     return vertices;
 }
@@ -277,19 +288,12 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wirefra
         VertexShaderOutput out2 = shader.vertexShader(in2);
         VertexShaderOutput out3 = shader.vertexShader(in3);
 
-        std::cout << "Vertex positions: "
-                  << "v1(" << out1.position.x << ", " << out1.position.y << ", " << out1.position.z << ", " << out1.position.w << "), "
-                  << "v2(" << out2.position.x << ", " << out2.position.y << ", " << out2.position.z << ", " << out2.position.w << "), "
-                  << "v3(" << out3.position.x << ", " << out3.position.y << ", " << out3.position.z << ", " << out3.position.w << ")" << std::endl;
-
         Vec3 vertexNormal1 = out1.normal.normalized();
         Vec3 vertexNormal2 = out2.normal.normalized();
         Vec3 vertexNormal3 = out3.normal.normalized();
 
         Vec3 triangleCenter = (out1.worldPos + out2.worldPos + out3.worldPos) / 3.0f;
-
         Vec3 cameraPos = shader.getCameraPosition();
-
         Vec3 viewDir = (cameraPos - triangleCenter).normalized();
 
         Vec3 edge1 = (out2.worldPos - out1.worldPos);
@@ -303,58 +307,42 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wirefra
         float bestDotProduct = std::max(vertexNormalDot, faceNormalDot);
 
         if (!wireframeMode && bestDotProduct < -0.7f) {
-            std::cout << "Triangle is back-facing." << std::endl;
+            // std::cout << "Triangle culled due to backface culling." << std::endl;
             continue;
         }
 
-        // Clip the triangle against the view frustum
-        std::vector<Vec4> clippedVertices = clipTriangle(out1.position, out2.position, out3.position);
+        VertexWithAttributes va1(out1.position, out1);
+        VertexWithAttributes va2(out2.position, out2);
+        VertexWithAttributes va3(out3.position, out3);
+
+        std::vector<VertexWithAttributes> clippedVertices = clipTriangleWithAttributes(va1, va2, va3);
         
-        // If triangle was completely clipped, skip it
         if (clippedVertices.size() < 3) {
-            std::cout << "Triangle was completely clipped." << std::endl;
             continue;
         }
         
-        // Triangulate the clipped polygon (if more than 3 vertices)
         for (size_t i = 1; i < clippedVertices.size() - 1; i++) {
-            std::cout << "Processing triangle: " << i << " of " << clippedVertices.size() << std::endl;
-            Vec4 clipVert1 = clippedVertices[0];
-            Vec4 clipVert2 = clippedVertices[i];
-            Vec4 clipVert3 = clippedVertices[i + 1];
+            const VertexWithAttributes& clipVert1 = clippedVertices[0];
+            const VertexWithAttributes& clipVert2 = clippedVertices[i];
+            const VertexWithAttributes& clipVert3 = clippedVertices[i + 1];
             
-            // Perform perspective division to get NDC coordinates
-            Vec4 ndc1 = clipVert1 / clipVert1.w;
-            Vec4 ndc2 = clipVert2 / clipVert2.w;
-            Vec4 ndc3 = clipVert3 / clipVert3.w;
+            const VertexShaderOutput& clipOut1 = clipVert1.attributes;
+            const VertexShaderOutput& clipOut2 = clipVert2.attributes;
+            const VertexShaderOutput& clipOut3 = clipVert3.attributes;
+            
+            Vec4 ndc1 = clipVert1.position / clipVert1.position.w;
+            Vec4 ndc2 = clipVert2.position / clipVert2.position.w;
+            Vec4 ndc3 = clipVert3.position / clipVert3.position.w;
 
-            std::cout << "NDC coordinates: "
-                    << "v1(" << ndc1.x << ", " << ndc1.y << ", " << ndc1.z << "), "
-                    << "v2(" << ndc2.x << ", " << ndc2.y << ", " << ndc2.z << "), "
-                    << "v3(" << ndc3.x << ", " << ndc3.y << ", " << ndc3.z << ")" << std::endl;
-
-            // Transform to screen space
             Vec4 screen1 = viewportTransform(ndc1);
             Vec4 screen2 = viewportTransform(ndc2);
             Vec4 screen3 = viewportTransform(ndc3);
 
-            std::cout << "Screen coordinates: "
-                    << "v1(" << screen1.x << ", " << screen1.y << "), "
-                    << "v2(" << screen2.x << ", " << screen2.y << "), "
-                    << "v3(" << screen3.x << ", " << screen3.y << ")" << std::endl;
-
-            // Calculate screen-space bounds
             int minX = std::max(0, std::min(std::min(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
             int maxX = std::min(m_width - 1, std::max(std::max(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
             int minY = std::max(0, std::min(std::min(static_cast<int>(screen1.y), static_cast<int>(screen2.y)), static_cast<int>(screen3.y)));
             int maxY = std::min(m_height - 1, std::max(std::max(static_cast<int>(screen1.y), static_cast<int>(screen2.y)), static_cast<int>(screen3.y)));
 
-            std::cout << "Triangle bounds: (" << minX << ", " << minY << ") to (" << maxX << ", " << maxY << ")" << std::endl;
-
-            // Interpolate attributes based on original vertex data
-            // This is a simple approach - for correct attribute interpolation, you would need to
-            // recompute the barycentric coordinates in the original triangle
-            
             for (int y = minY; y <= maxY; y++) {
                 for (int x = minX; x <= maxX; x++) {
                     Vec2 p(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f);
@@ -385,10 +373,9 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wirefra
                     if (alpha >= 0.0f && beta >= 0.0f && gamma >= 0.0f &&
                         (alpha + beta + gamma) <= 1.0f + 1e-5f) {
 
-                        // Use 1/w from clip space for correct interpolation
-                        float w1 = 1.0f / clipVert1.w;
-                        float w2 = 1.0f / clipVert2.w;
-                        float w3 = 1.0f / clipVert3.w;
+                        float w1 = 1.0f / clipVert1.position.w;
+                        float w2 = 1.0f / clipVert2.position.w;
+                        float w3 = 1.0f / clipVert3.position.w;
 
                         float wInterp = alpha * w1 + beta * w2 + gamma * w3;
                         float z1 = ndc1.z;
@@ -403,30 +390,27 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wirefra
                         float depthValue = zInterp - bias;
                         
                         if (depthValue < m_depthBuffer[index]) {
-                            // Perspective-correct interpolation
-                            alpha *= w1 / wInterp;
-                            beta *= w2 / wInterp;
-                            gamma *= w3 / wInterp;
-
-                            // Since we're using the clipped vertices, we need to approximate the attributes
-                            // A more accurate solution would track the attributes through clipping
-                            Vec3 worldPos = out1.worldPos * alpha + out2.worldPos * beta + out3.worldPos * gamma;
-                            Vec3 normal = (out1.normal * alpha + out2.normal * beta + out3.normal * gamma).normalized();
+                            float alphaPersp = w1 * alpha / wInterp;
+                            float betaPersp = w2 * beta / wInterp;
+                            float gammaPersp = w3 * gamma / wInterp;
+                            
+                            Vec3 worldPos = clipOut1.worldPos * alphaPersp + clipOut2.worldPos * betaPersp + clipOut3.worldPos * gammaPersp;
+                            Vec3 normal = (clipOut1.normal * alphaPersp + clipOut2.normal * betaPersp + clipOut3.normal * gammaPersp).normalized();
+                            
                             Vec2 texCoord = Vec2(
-                                out1.texCoord.x * alpha + out2.texCoord.x * beta + out3.texCoord.x * gamma,
-                                out1.texCoord.y * alpha + out2.texCoord.y * beta + out3.texCoord.y * gamma
+                                clipOut1.texCoord.x * alphaPersp + clipOut2.texCoord.x * betaPersp + clipOut3.texCoord.x * gammaPersp,
+                                clipOut1.texCoord.y * alphaPersp + clipOut2.texCoord.y * betaPersp + clipOut3.texCoord.y * gammaPersp
                             );
+                            
+                            // Use the properly interpolated colors from the clipped vertices
                             Color baseColor = Color(
-                                static_cast<uint8_t>(out1.color.r * alpha + out2.color.r * beta + out3.color.r * gamma),
-                                static_cast<uint8_t>(out1.color.g * alpha + out2.color.g * beta + out3.color.g * gamma),
-                                static_cast<uint8_t>(out1.color.b * alpha + out2.color.b * beta + out3.color.b * gamma),
-                                static_cast<uint8_t>(out1.color.a * alpha + out2.color.a * beta + out3.color.a * gamma)
+                                static_cast<uint8_t>(clipOut1.color.r * alphaPersp + clipOut2.color.r * betaPersp + clipOut3.color.r * gammaPersp),
+                                static_cast<uint8_t>(clipOut1.color.g * alphaPersp + clipOut2.color.g * betaPersp + clipOut3.color.g * gammaPersp),
+                                static_cast<uint8_t>(clipOut1.color.b * alphaPersp + clipOut2.color.b * betaPersp + clipOut3.color.b * gammaPersp),
+                                static_cast<uint8_t>(clipOut1.color.a * alphaPersp + clipOut2.color.a * betaPersp + clipOut3.color.a * gammaPersp)
                             );
 
-                            Vec3 normalizedNormal = normal.normalized();
-
-                            FragmentShaderInput fragIn{worldPos, normalizedNormal, texCoord, baseColor};
-
+                            FragmentShaderInput fragIn{worldPos, normal, texCoord, baseColor};
                             Color pixelColor = shader.fragmentShader(fragIn);
 
                             m_colorBuffer[index] = pixelColor.toUint32();

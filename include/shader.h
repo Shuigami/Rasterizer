@@ -18,6 +18,22 @@ struct VertexShaderOutput {
     Vec2 texCoord;
     Color color;
 
+    static VertexShaderOutput lerp(const VertexShaderOutput& a, const VertexShaderOutput& b, float t) {
+        return {
+            a.position + (b.position - a.position) * t,
+            a.worldPos + (b.worldPos - a.worldPos) * t,
+            a.normal + (b.normal - a.normal) * t,
+            Vec2(a.texCoord.x + (b.texCoord.x - a.texCoord.x) * t,
+                 a.texCoord.y + (b.texCoord.y - a.texCoord.y) * t),
+            Color(
+                static_cast<uint8_t>(a.color.r + (b.color.r - a.color.r) * t),
+                static_cast<uint8_t>(a.color.g + (b.color.g - a.color.g) * t),
+                static_cast<uint8_t>(a.color.b + (b.color.b - a.color.b) * t),
+                static_cast<uint8_t>(a.color.a + (b.color.a - a.color.a) * t)
+            )
+        };
+    }
+
     static VertexShaderOutput interpolate(const VertexShaderOutput& v1, const VertexShaderOutput& v2, float t) {
         VertexShaderOutput result;
         result.position = v1.position * (1.0f - t) + v2.position * t;
@@ -115,7 +131,8 @@ public:
     void setViewMatrix(const Matrix4x4& view) { m_view = view; }
     void setProjectionMatrix(const Matrix4x4& projection) { m_projection = projection; }
 
-    virtual Vec3 getCameraPosition() const { return Vec3(0.0f, 0.0f, 0.0f); }
+    virtual void setCameraPosition(const Vec3& cameraPos) = 0;
+    virtual Vec3 getCameraPosition() const = 0;
 
     void addLight(const Light& light) {
         m_lights.push_back(light);
@@ -140,7 +157,7 @@ public:
     Color fragmentShader(const FragmentShaderInput& input) const override;
 
     void setColor(const Color& color) { m_color = color; }
-    void setCameraPosition(const Vec3& cameraPos) { m_cameraPos = cameraPos; }
+    void setCameraPosition(const Vec3& cameraPos) override { m_cameraPos = cameraPos; }
     Vec3 getCameraPosition() const override { return m_cameraPos; }
 
 private:
@@ -156,7 +173,7 @@ public:
     void setDiffuse(float diffuse) { m_diffuse = diffuse; }
     void setSpecular(float specular) { m_specular = specular; }
     void setShininess(float shininess) { m_shininess = shininess; }
-    void setCameraPosition(const Vec3& cameraPos) { m_cameraPos = cameraPos; }
+    void setCameraPosition(const Vec3& cameraPos) override { m_cameraPos = cameraPos; }
 
     Vec3 getCameraPosition() const override { return m_cameraPos; }
 
@@ -178,7 +195,7 @@ public:
     void setDiffuse(float diffuse) { m_diffuse = diffuse; }
     void setSpecular(float specular) { m_specular = specular; }
     void setShininess(float shininess) { m_shininess = shininess; }
-    void setCameraPosition(const Vec3& cameraPos) { m_cameraPos = cameraPos; }
+    void setCameraPosition(const Vec3& cameraPos) override { m_cameraPos = cameraPos; }
     void setLevels(int levels) { m_levels = levels; }
     void setOutlineThickness(float thickness) { m_outlineThickness = thickness; }
     void setOutlineColor(const Color& color) { m_outlineColor = color; }

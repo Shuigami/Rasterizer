@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     wellMesh.loadFromOBJ("assets/moto.obj");
 
     Mesh planeMesh;
-    planeMesh.createPlane(1.0f, 1.0f, Color(80, 80, 80));
+    planeMesh.createPlane(1.0f, 1.0f, Color(255, 255, 255));
 
     PhongShader phongShader;
     phongShader.setAmbient(0.2f);
@@ -63,14 +63,16 @@ int main(int argc, char** argv) {
 
     FlatShader flatShader(Color(200, 50, 50));
 
+    Shader* currentShader = &phongShader;
+
     Light pointLight;
     pointLight.type = Light::Type::Point;
-    pointLight.position = Vec3(0.0f, 2.0f, 0.0f);
+    pointLight.position = Vec3(5.0f, 2.0f, 5.0f);
     pointLight.color = Color(255, 255, 255);
     pointLight.intensity = 1.f;
     pointLight.range = 20.0f;
-    phongShader.addLight(pointLight);
-    toonShader.addLight(pointLight);
+
+    currentShader->addLight(pointLight);
 
     bool running = true;
     float rotation = 0.0f;
@@ -99,48 +101,32 @@ int main(int argc, char** argv) {
 
         rotation += 0.7f * deltaTime;
 
-        phongShader.setCameraPosition(cameraPos);
-        flatShader.setCameraPosition(cameraPos);
-        toonShader.setCameraPosition(cameraPos);
-
-        pointLight.position = Vec3(
-            5.0f * std::cos(rotation),
-            2.0f,
-            5.0f * std::sin(rotation)
-        );
-
-        phongShader.clearLights();
-        toonShader.clearLights();
-        phongShader.addLight(pointLight);
-        toonShader.addLight(pointLight);
+        currentShader->setCameraPosition(cameraPos);
+        currentShader->setViewMatrix(camera.getViewMatrix());
+        currentShader->setProjectionMatrix(camera.getProjectionMatrix());
 
         Matrix4x4 cubeModelMatrix = Matrix4x4::translation(0.0f, 0.5f, 0.0f);
         Matrix4x4 sphereModelMatrix = Matrix4x4::translation(0.0f, 0.0f, 0.0f);
         Matrix4x4 wellModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f) * Matrix4x4::rotationY(M_PI / 4) * Matrix4x4::scaling(0.3f, 0.3f, 0.3f);
-        Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f) * Matrix4x4::scaling(1.0f, 1.0f, 11.0f);
-
-        phongShader.setViewMatrix(camera.getViewMatrix());
-        phongShader.setProjectionMatrix(camera.getProjectionMatrix());
-        flatShader.setViewMatrix(camera.getViewMatrix());
-        flatShader.setProjectionMatrix(camera.getProjectionMatrix());
-        toonShader.setViewMatrix(camera.getViewMatrix());
-        toonShader.setProjectionMatrix(camera.getProjectionMatrix());
+        Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -1.0f, 0.0f) * Matrix4x4::scaling(20.0f, 1.0f, 20.0f);
+        // Matrix4x4 planeBgModelMatrix = Matrix4x4::rotationX(M_PI / 2) * Matrix4x4::scaling(1.0f, 1.0f, 5.8f);
 
         rasterizer.clear(Color(20, 20, 20));
-
-        Shader* currentShader = &phongShader;
 
         // currentShader->setModelMatrix(cubeModelMatrix);
         // rasterizer.renderMesh(cubeMesh, *currentShader, wireframeMode);
 
-        // currentShader->setModelMatrix(sphereModelMatrix);
-        // rasterizer.renderMesh(sphereMesh, *currentShader, wireframeMode);
+        currentShader->setModelMatrix(sphereModelMatrix);
+        rasterizer.renderMesh(sphereMesh, *currentShader, wireframeMode);
 
         // currentShader->setModelMatrix(wellModelMatrix);
         // rasterizer.renderMesh(wellMesh, *currentShader, wireframeMode);
         
         currentShader->setModelMatrix(planeModelMatrix);
         rasterizer.renderMesh(planeMesh, *currentShader, wireframeMode);
+
+        // currentShader->setModelMatrix(planeBgModelMatrix);
+        // rasterizer.renderMesh(planeMesh, *currentShader, wireframeMode);
 
         rasterizer.present();
 
