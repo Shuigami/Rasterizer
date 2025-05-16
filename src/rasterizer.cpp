@@ -1,4 +1,5 @@
 #include "rasterizer.h"
+#include "logger.h"
 #include <algorithm>
 #include <iostream>
 
@@ -42,13 +43,13 @@ bool Rasterizer::initialize() {
     );
 
     if (!m_window) {
-        std::cerr << "Failed to create window: " << SDL_GetError() << std::endl;
+        LOG_ERROR("Failed to create window: " + std::string(SDL_GetError()));
         return false;
     }
 
     m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
     if (!m_renderer) {
-        std::cerr << "Failed to create renderer: " << SDL_GetError() << std::endl;
+        LOG_ERROR("Failed to create renderer: " + std::string(SDL_GetError()));
         return false;
     }
 
@@ -60,10 +61,11 @@ bool Rasterizer::initialize() {
     );
 
     if (!m_frameBuffer) {
-        std::cerr << "Failed to create frame buffer: " << SDL_GetError() << std::endl;
+        LOG_ERROR("Failed to create frame buffer: " + std::string(SDL_GetError()));
         return false;
     }
 
+    LOG_INFO("Rasterizer initialized successfully");
     return true;
 }
 
@@ -271,9 +273,12 @@ std::vector<VertexWithAttributes> clipTriangleWithAttributes(
     return vertices;
 }
 
-void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wireframeMode) {
+void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
     const std::vector<Vertex>& vertices = mesh.getVertices();
     const std::vector<Triangle>& triangles = mesh.getTriangles();
+    
+    LOG_DEBUG("Rendering mesh with " + std::to_string(vertices.size()) + " vertices and " + 
+             std::to_string(triangles.size()) + " triangles");
 
     for (const Triangle& triangle : triangles) {
         const Vertex& v1 = vertices[triangle.v1];
@@ -306,8 +311,8 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wirefra
 
         float bestDotProduct = std::max(vertexNormalDot, faceNormalDot);
 
-        if (!wireframeMode && bestDotProduct < -0.7f) {
-            // std::cout << "Triangle culled due to backface culling." << std::endl;
+        if (!m_wireframeMode && bestDotProduct < -0.7f) {
+            LOG_DEBUG("Triangle culled due to backface culling");
             continue;
         }
 
@@ -318,6 +323,7 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wirefra
         std::vector<VertexWithAttributes> clippedVertices = clipTriangleWithAttributes(va1, va2, va3);
         
         if (clippedVertices.size() < 3) {
+            LOG_DEBUG("Triangle clipped out");
             continue;
         }
         
@@ -420,7 +426,7 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wirefra
                 }
             }
 
-            if (wireframeMode) {
+            if (m_wireframeMode) {
                 Color wireColor = normal.dot(viewDir) > 0.0f
                     ? Color(255, 255, 255)
                     : Color(255, 0, 0);
@@ -460,12 +466,35 @@ bool Rasterizer::shouldQuit() const {
 
 void Rasterizer::handleEvents() {
     SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        if (event.type == SDL_QUIT) {
+    while (SDL_PollEvent(&event))
+    {
+        if (event.type == SDL_QUIT)
             m_quit = true;
-        } else if (event.type == SDL_KEYDOWN) {
-            if (event.key.keysym.sym == SDLK_ESCAPE) {
+
+        else if (event.type == SDL_KEYDOWN)
+        {
+            if (event.key.keysym.sym == SDLK_ESCAPE)
                 m_quit = true;
+
+            else if (event.key.keysym.sym == SDLK_w)
+            {
+                m_wireframeMode = !m_wireframeMode;
+                LOG_INFO("Wireframe mode: " + std::string(m_wireframeMode ? "ON" : "OFF"));
+            }
+
+            else if (event.key.keysym.sym == SDLK_d)
+            {
+                LogLevel currentLevel = Logger::getInstance().getLevel();
+                if (currentLevel == LogLevel::INFO)
+                {
+                    Logger::getInstance().setLevel(LogLevel::DEBUG);
+                    LOG_INFO("Debug logging enabled");
+                }
+                else
+                {
+                    Logger::getInstance().setLevel(LogLevel::INFO);
+                    LOG_INFO("Debug logging disabled");
+                }
             }
         }
     }

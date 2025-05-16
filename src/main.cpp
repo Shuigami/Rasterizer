@@ -1,4 +1,3 @@
-#include <iostream>
 #include <SDL.h>
 #include "rasterizer.h"
 #include "mesh.h"
@@ -6,20 +5,25 @@
 #include "camera.h"
 #include "vector.h"
 #include "matrix.h"
+#include "logger.h"
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
 bool wireframeMode = false;
 
 int main(int argc, char** argv) {
+    Logger& logger = Logger::getInstance();
+    logger.setLevel(LogLevel::INFO);
+    
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        std::cerr << "SDL initialization failed: " << SDL_GetError() << std::endl;
+        LOG_ERROR("SDL initialization failed: " + std::string(SDL_GetError()));
         return 1;
     }
 
+    LOG_INFO("Starting rasterizer...");
     Rasterizer rasterizer(WINDOW_WIDTH, WINDOW_HEIGHT);
     if (!rasterizer.initialize()) {
-        std::cerr << "Failed to initialize rasterizer." << std::endl;
+        LOG_ERROR("Failed to initialize rasterizer.");
         SDL_Quit();
         return 1;
     }
@@ -33,7 +37,9 @@ int main(int argc, char** argv) {
         0.1f,
         100.0f
     );
+    LOG_INFO("Camera initialized");
 
+    LOG_INFO("Loading meshes...");
     Mesh cubeMesh;
     cubeMesh.createCube(Color(80, 80, 80));
 
@@ -45,7 +51,9 @@ int main(int argc, char** argv) {
 
     Mesh planeMesh;
     planeMesh.createPlane(1.0f, 1.0f, Color(255, 255, 255));
+    LOG_INFO("All meshes loaded successfully");
 
+    LOG_INFO("Setting up shaders...");
     PhongShader phongShader;
     phongShader.setAmbient(0.2f);
     phongShader.setDiffuse(0.7f);
@@ -73,25 +81,14 @@ int main(int argc, char** argv) {
     pointLight.range = 20.0f;
 
     currentShader->addLight(pointLight);
+    LOG_INFO("Shaders and lighting configured");
 
-    bool running = true;
     float rotation = 0.0f;
     uint32_t lastTick = SDL_GetTicks();
+    LOG_INFO("Starting render loop");
 
-    while (running && !rasterizer.shouldQuit()) {
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                running = false;
-            } else if (event.type == SDL_KEYDOWN) {
-                if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    running = false;
-                } else if (event.key.keysym.sym == SDLK_w) {
-                    wireframeMode = !wireframeMode;
-                    std::cout << "Wireframe mode: " << (wireframeMode ? "ON" : "OFF") << std::endl;
-                }
-            }
-        }
+    while (!rasterizer.shouldQuit()) {
+        rasterizer.handleEvents();
 
         Vec3 cameraPos = camera.getPosition();
 
@@ -100,7 +97,7 @@ int main(int argc, char** argv) {
         lastTick = currentTick;
 
         rotation += 0.7f * deltaTime;
-
+        
         currentShader->setCameraPosition(cameraPos);
         currentShader->setViewMatrix(camera.getViewMatrix());
         currentShader->setProjectionMatrix(camera.getProjectionMatrix());
@@ -109,30 +106,31 @@ int main(int argc, char** argv) {
         Matrix4x4 sphereModelMatrix = Matrix4x4::translation(0.0f, 0.0f, 0.0f);
         Matrix4x4 wellModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f) * Matrix4x4::rotationY(M_PI / 4) * Matrix4x4::scaling(0.3f, 0.3f, 0.3f);
         Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -1.0f, 0.0f) * Matrix4x4::scaling(20.0f, 1.0f, 20.0f);
-        // Matrix4x4 planeBgModelMatrix = Matrix4x4::rotationX(M_PI / 2) * Matrix4x4::scaling(1.0f, 1.0f, 5.8f);
+        Matrix4x4 planeBgModelMatrix = Matrix4x4::rotationX(M_PI / 2) * Matrix4x4::scaling(1.0f, 1.0f, 5.8f);
 
         rasterizer.clear(Color(20, 20, 20));
 
         // currentShader->setModelMatrix(cubeModelMatrix);
-        // rasterizer.renderMesh(cubeMesh, *currentShader, wireframeMode);
+        // rasterizer.renderMesh(cubeMesh, *currentShader);
 
-        currentShader->setModelMatrix(sphereModelMatrix);
-        rasterizer.renderMesh(sphereMesh, *currentShader, wireframeMode);
+        // currentShader->setModelMatrix(sphereModelMatrix);
+        // rasterizer.renderMesh(sphereMesh, *currentShader);
 
         // currentShader->setModelMatrix(wellModelMatrix);
-        // rasterizer.renderMesh(wellMesh, *currentShader, wireframeMode);
+        // rasterizer.renderMesh(wellMesh, *currentShader);
         
-        currentShader->setModelMatrix(planeModelMatrix);
-        rasterizer.renderMesh(planeMesh, *currentShader, wireframeMode);
+        // currentShader->setModelMatrix(planeModelMatrix);
+        // rasterizer.renderMesh(planeMesh, *currentShader);
 
-        // currentShader->setModelMatrix(planeBgModelMatrix);
-        // rasterizer.renderMesh(planeMesh, *currentShader, wireframeMode);
+        currentShader->setModelMatrix(planeBgModelMatrix);
+        rasterizer.renderMesh(planeMesh, *currentShader);
 
         rasterizer.present();
 
         SDL_Delay(16);
     }
 
+    LOG_INFO("Shutting down application");
     SDL_Quit();
     return 0;
 }

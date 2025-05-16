@@ -5,6 +5,7 @@
 #include "vector.h"
 #include "mesh.h"
 #include "shader.h"
+#include "logger.h"
 
 class Rasterizer {
 public:
@@ -17,7 +18,7 @@ public:
     void drawLine(int x1, int y1, int x2, int y2, const Color& color);
     void drawTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, const Color& color);
     void fillTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, const Color& color);
-    void renderMesh(const Mesh& mesh, const Shader& shader, bool wireframeMode = false);
+    void renderMesh(const Mesh& mesh, const Shader& shader);
     void present();
     bool shouldQuit() const;
     void handleEvents();
@@ -31,6 +32,7 @@ private:
     std::vector<uint32_t> m_colorBuffer;
     std::vector<float> m_depthBuffer;
     bool m_quit;
+    bool m_wireframeMode;
 
     Vec4 viewportTransform(const Vec4& clipCoords) const;
     bool isInsideFrustum(const Vec4& clipCoords) const;
