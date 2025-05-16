@@ -77,12 +77,7 @@ bool Mesh::loadFromOBJ(const std::string& filename) {
                     if (!normalIndices.empty() && normalIndices[0] < normals.size()) {
                         v1.normal = normals[normalIndices[0]];
                     }
-                    Vec3 normalizedPos = (v1.position + Vec3(1.0f, 1.0f, 1.0f)) * 0.5f;
-                    v1.color = Color(
-                        static_cast<uint8_t>(normalizedPos.x * 255),
-                        static_cast<uint8_t>(normalizedPos.y * 255),
-                        static_cast<uint8_t>(normalizedPos.z * 255)
-                    );
+                    v1.color = Color(255, 255, 255);
 
                     v2.position = positions[positionIndices[i-1]];
                     if (!texCoordIndices.empty() && texCoordIndices[i-1] < texCoords.size()) {
@@ -91,12 +86,7 @@ bool Mesh::loadFromOBJ(const std::string& filename) {
                     if (!normalIndices.empty() && normalIndices[i-1] < normals.size()) {
                         v2.normal = normals[normalIndices[i-1]];
                     }
-                    normalizedPos = (v2.position + Vec3(1.0f, 1.0f, 1.0f)) * 0.5f;
-                    v2.color = Color(
-                        static_cast<uint8_t>(normalizedPos.x * 255),
-                        static_cast<uint8_t>(normalizedPos.y * 255),
-                        static_cast<uint8_t>(normalizedPos.z * 255)
-                    );
+                    v2.color = Color(255, 255, 255);
 
                     v3.position = positions[positionIndices[i]];
                     if (!texCoordIndices.empty() && texCoordIndices[i] < texCoords.size()) {
@@ -105,12 +95,7 @@ bool Mesh::loadFromOBJ(const std::string& filename) {
                     if (!normalIndices.empty() && normalIndices[i] < normals.size()) {
                         v3.normal = normals[normalIndices[i]];
                     }
-                    normalizedPos = (v3.position + Vec3(1.0f, 1.0f, 1.0f)) * 0.5f;
-                    v3.color = Color(
-                        static_cast<uint8_t>(normalizedPos.x * 255),
-                        static_cast<uint8_t>(normalizedPos.y * 255),
-                        static_cast<uint8_t>(normalizedPos.z * 255)
-                    );
+                    v3.color = Color(255, 255, 255);
 
                     int v1Index = m_vertices.size();
                     m_vertices.push_back(v1);
@@ -328,4 +313,54 @@ void Mesh::setGradientColors(const Color& startColor, const Color& endColor, boo
             static_cast<uint8_t>(startColor.b * (1.0f - t) + endColor.b * t)
         );
     }
+}
+
+void Mesh::createPlane(float width, float depth, const Color& color) {
+    // Clear any existing data
+    m_vertices.clear();
+    m_triangles.clear();
+    
+    // Calculate half dimensions
+    float halfWidth = width / 2.0f;
+    float halfDepth = depth / 2.0f;
+    
+    // Define the 4 corners of the plane on the XZ plane (Y is up)
+    Vertex v1, v2, v3, v4;
+    
+    // Bottom left
+    v1.position = Vec3(-halfWidth, 0, -halfDepth);
+    v1.normal = Vec3(0, 1, 0);
+    v1.color = color;
+    v1.texCoord = Vec2(0, 0);
+    
+    // Bottom right
+    v2.position = Vec3(halfWidth, 0, -halfDepth);
+    v2.normal = Vec3(0, 1, 0);
+    v2.color = color;
+    v2.texCoord = Vec2(1, 0);
+    
+    // Top right
+    v3.position = Vec3(halfWidth, 0, halfDepth);
+    v3.normal = Vec3(0, 1, 0);
+    v3.color = color;
+    v3.texCoord = Vec2(1, 1);
+    
+    // Top left
+    v4.position = Vec3(-halfWidth, 0, halfDepth);
+    v4.normal = Vec3(0, 1, 0);
+    v4.color = color;
+    v4.texCoord = Vec2(0, 1);
+
+    // Add vertices
+    m_vertices.push_back(v1);
+    m_vertices.push_back(v2);
+    m_vertices.push_back(v3);
+    m_vertices.push_back(v4);
+    
+    // Add indices for triangles
+    // First triangle (bottom-left, bottom-right, top-right)
+    m_triangles.push_back(Triangle(0, 1, 2));
+    
+    // Second triangle (bottom-left, top-right, top-left)
+    m_triangles.push_back(Triangle(0, 2, 3));
 }

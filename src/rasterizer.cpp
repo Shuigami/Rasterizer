@@ -157,6 +157,109 @@ void Rasterizer::fillTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, co
     }
 }
 
+// Sutherland-Hodgman Polygon Clipping for one plane
+std::vector<Vec4> clipAgainstPlane(const std::vector<Vec4>& vertices, int planeIndex, int sign) {
+    std::vector<Vec4> result;
+    if (vertices.empty()) return result;
+    
+    size_t numVertices = vertices.size();
+    for (size_t i = 0; i < numVertices; i++) {
+        size_t currIdx = i;
+        size_t nextIdx = (i + 1) % numVertices;
+        
+        const Vec4& currVertex = vertices[currIdx];
+        const Vec4& nextVertex = vertices[nextIdx];
+        
+        // Determine if vertices are inside the clip plane
+        float currComp, nextComp;
+        if (planeIndex == 0) { // X plane
+            currComp = sign * currVertex.x;
+            nextComp = sign * nextVertex.x;
+        } else if (planeIndex == 1) { // Y plane
+            currComp = sign * currVertex.y;
+            nextComp = sign * nextVertex.y;
+        } else if (planeIndex == 2) { // Z plane
+            currComp = sign * currVertex.z;
+            nextComp = sign * nextVertex.z;
+        } else { // W plane (near plane)
+            currComp = currVertex.z; // Near plane: z >= -w
+            nextComp = nextVertex.z;
+        }
+        
+        // Check if inside the frustum
+        bool currInside, nextInside;
+        if (planeIndex == 3) { // Special case for near plane
+            currInside = currVertex.z >= -currVertex.w;
+            nextInside = nextVertex.z >= -nextVertex.w;
+        } else {
+            currInside = currComp <= currVertex.w;
+            nextInside = nextComp <= nextVertex.w;
+        }
+        
+        // Both vertices are outside: add none
+        if (!currInside && !nextInside) {
+            continue;
+        }
+        
+        // Current outside, next inside: add intersection and next
+        if (!currInside && nextInside) {
+            float t;
+            if (planeIndex == 0) { // X plane
+                t = (sign * currVertex.w - currVertex.x) / ((sign * currVertex.w - currVertex.x) - (sign * nextVertex.w - nextVertex.x));
+            } else if (planeIndex == 1) { // Y plane
+                t = (sign * currVertex.w - currVertex.y) / ((sign * currVertex.w - currVertex.y) - (sign * nextVertex.w - nextVertex.y));
+            } else if (planeIndex == 2) { // Z plane
+                t = (sign * currVertex.w - currVertex.z) / ((sign * currVertex.w - currVertex.z) - (sign * nextVertex.w - nextVertex.z));
+            } else { // W plane (near plane)
+                t = (currVertex.z + currVertex.w) / ((currVertex.z + currVertex.w) - (nextVertex.z + nextVertex.w));
+            }
+            
+            Vec4 intersection = currVertex + (nextVertex - currVertex) * t;
+            result.push_back(intersection);
+            result.push_back(nextVertex);
+        }
+        
+        // Current inside, next inside: add only next
+        else if (currInside && nextInside) {
+            result.push_back(nextVertex);
+        }
+        
+        // Current inside, next outside: add only intersection
+        else if (currInside && !nextInside) {
+            float t;
+            if (planeIndex == 0) { // X plane
+                t = (sign * currVertex.w - currVertex.x) / ((sign * currVertex.w - currVertex.x) - (sign * nextVertex.w - nextVertex.x));
+            } else if (planeIndex == 1) { // Y plane
+                t = (sign * currVertex.w - currVertex.y) / ((sign * currVertex.w - currVertex.y) - (sign * nextVertex.w - nextVertex.y));
+            } else if (planeIndex == 2) { // Z plane
+                t = (sign * currVertex.w - currVertex.z) / ((sign * currVertex.w - currVertex.z) - (sign * nextVertex.w - nextVertex.z));
+            } else { // W plane (near plane)
+                t = (currVertex.z + currVertex.w) / ((currVertex.z + currVertex.w) - (nextVertex.z + nextVertex.w));
+            }
+            
+            Vec4 intersection = currVertex + (nextVertex - currVertex) * t;
+            result.push_back(intersection);
+        }
+    }
+    
+    return result;
+}
+
+// Clip a triangle against all 6 planes of the view frustum
+std::vector<Vec4> clipTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3) {
+    std::vector<Vec4> vertices = {v1, v2, v3};
+    
+    // Clip against all 6 planes of the view frustum
+    vertices = clipAgainstPlane(vertices, 0, 1);   // Right plane (x <= w)
+    vertices = clipAgainstPlane(vertices, 0, -1);  // Left plane (-x <= w)
+    vertices = clipAgainstPlane(vertices, 1, 1);   // Top plane (y <= w)
+    vertices = clipAgainstPlane(vertices, 1, -1);  // Bottom plane (-y <= w)
+    vertices = clipAgainstPlane(vertices, 2, 1);   // Far plane (z <= w)
+    vertices = clipAgainstPlane(vertices, 3, 0);   // Near plane (z >= -w)
+    
+    return vertices;
+}
+
 void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wireframeMode) {
     const std::vector<Vertex>& vertices = mesh.getVertices();
     const std::vector<Triangle>& triangles = mesh.getTriangles();
@@ -173,6 +276,11 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wirefra
         VertexShaderOutput out1 = shader.vertexShader(in1);
         VertexShaderOutput out2 = shader.vertexShader(in2);
         VertexShaderOutput out3 = shader.vertexShader(in3);
+
+        std::cout << "Vertex positions: "
+                  << "v1(" << out1.position.x << ", " << out1.position.y << ", " << out1.position.z << ", " << out1.position.w << "), "
+                  << "v2(" << out2.position.x << ", " << out2.position.y << ", " << out2.position.z << ", " << out2.position.w << "), "
+                  << "v3(" << out3.position.x << ", " << out3.position.y << ", " << out3.position.z << ", " << out3.position.w << ")" << std::endl;
 
         Vec3 vertexNormal1 = out1.normal.normalized();
         Vec3 vertexNormal2 = out2.normal.normalized();
@@ -195,102 +303,135 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader, bool wirefra
         float bestDotProduct = std::max(vertexNormalDot, faceNormalDot);
 
         if (!wireframeMode && bestDotProduct < -0.7f) {
+            std::cout << "Triangle is back-facing." << std::endl;
             continue;
         }
 
-        if (!isInsideFrustum(out1.position) && !isInsideFrustum(out2.position) && !isInsideFrustum(out3.position)) {
+        // Clip the triangle against the view frustum
+        std::vector<Vec4> clippedVertices = clipTriangle(out1.position, out2.position, out3.position);
+        
+        // If triangle was completely clipped, skip it
+        if (clippedVertices.size() < 3) {
+            std::cout << "Triangle was completely clipped." << std::endl;
             continue;
         }
+        
+        // Triangulate the clipped polygon (if more than 3 vertices)
+        for (size_t i = 1; i < clippedVertices.size() - 1; i++) {
+            std::cout << "Processing triangle: " << i << " of " << clippedVertices.size() << std::endl;
+            Vec4 clipVert1 = clippedVertices[0];
+            Vec4 clipVert2 = clippedVertices[i];
+            Vec4 clipVert3 = clippedVertices[i + 1];
+            
+            // Perform perspective division to get NDC coordinates
+            Vec4 ndc1 = clipVert1 / clipVert1.w;
+            Vec4 ndc2 = clipVert2 / clipVert2.w;
+            Vec4 ndc3 = clipVert3 / clipVert3.w;
 
-        Vec4 ndc1 = out1.position / out1.position.w;
-        Vec4 ndc2 = out2.position / out2.position.w;
-        Vec4 ndc3 = out3.position / out3.position.w;
+            std::cout << "NDC coordinates: "
+                    << "v1(" << ndc1.x << ", " << ndc1.y << ", " << ndc1.z << "), "
+                    << "v2(" << ndc2.x << ", " << ndc2.y << ", " << ndc2.z << "), "
+                    << "v3(" << ndc3.x << ", " << ndc3.y << ", " << ndc3.z << ")" << std::endl;
 
-        Vec4 screen1 = viewportTransform(ndc1);
-        Vec4 screen2 = viewportTransform(ndc2);
-        Vec4 screen3 = viewportTransform(ndc3);
+            // Transform to screen space
+            Vec4 screen1 = viewportTransform(ndc1);
+            Vec4 screen2 = viewportTransform(ndc2);
+            Vec4 screen3 = viewportTransform(ndc3);
 
-        if (screen1.x < 0 && screen2.x < 0 && screen3.x < 0) continue;
-        if (screen1.x >= m_width && screen2.x >= m_width && screen3.x >= m_width) continue;
-        if (screen1.y < 0 && screen2.y < 0 && screen3.y < 0) continue;
-        if (screen1.y >= m_height && screen2.y >= m_height && screen3.y >= m_height) continue;
+            std::cout << "Screen coordinates: "
+                    << "v1(" << screen1.x << ", " << screen1.y << "), "
+                    << "v2(" << screen2.x << ", " << screen2.y << "), "
+                    << "v3(" << screen3.x << ", " << screen3.y << ")" << std::endl;
 
-        int minX = std::max(0, std::min(std::min(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
-        int maxX = std::min(m_width - 1, std::max(std::max(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
-        int minY = std::max(0, std::min(std::min(static_cast<int>(screen1.y), static_cast<int>(screen2.y)), static_cast<int>(screen3.y)));
-        int maxY = std::min(m_height - 1, std::max(std::max(static_cast<int>(screen1.y), static_cast<int>(screen2.y)), static_cast<int>(screen3.y)));
+            // Calculate screen-space bounds
+            int minX = std::max(0, std::min(std::min(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
+            int maxX = std::min(m_width - 1, std::max(std::max(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
+            int minY = std::max(0, std::min(std::min(static_cast<int>(screen1.y), static_cast<int>(screen2.y)), static_cast<int>(screen3.y)));
+            int maxY = std::min(m_height - 1, std::max(std::max(static_cast<int>(screen1.y), static_cast<int>(screen2.y)), static_cast<int>(screen3.y)));
 
-        for (int y = minY; y <= maxY; y++) {
-            for (int x = minX; x <= maxX; x++) {
-                Vec2 p(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f);
+            std::cout << "Triangle bounds: (" << minX << ", " << minY << ") to (" << maxX << ", " << maxY << ")" << std::endl;
 
-                Vec2 a(screen1.x, screen1.y);
-                Vec2 b(screen2.x, screen2.y);
-                Vec2 c(screen3.x, screen3.y);
+            // Interpolate attributes based on original vertex data
+            // This is a simple approach - for correct attribute interpolation, you would need to
+            // recompute the barycentric coordinates in the original triangle
+            
+            for (int y = minY; y <= maxY; y++) {
+                for (int x = minX; x <= maxX; x++) {
+                    Vec2 p(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f);
 
-                Vec2 v0 = b - a;
-                Vec2 v1 = c - a;
-                Vec2 v2 = p - a;
+                    Vec2 a(screen1.x, screen1.y);
+                    Vec2 b(screen2.x, screen2.y);
+                    Vec2 c(screen3.x, screen3.y);
 
-                float d00 = v0.dot(v0);
-                float d01 = v0.dot(v1);
-                float d11 = v1.dot(v1);
-                float d20 = v2.dot(v0);
-                float d21 = v2.dot(v1);
+                    Vec2 v0 = b - a;
+                    Vec2 v1 = c - a;
+                    Vec2 v2 = p - a;
 
-                float denom = d00 * d11 - d01 * d01;
-                if (std::abs(denom) < 1e-6f) {
-                    continue;
-                }
+                    float d00 = v0.dot(v0);
+                    float d01 = v0.dot(v1);
+                    float d11 = v1.dot(v1);
+                    float d20 = v2.dot(v0);
+                    float d21 = v2.dot(v1);
 
-                float beta = (d11 * d20 - d01 * d21) / denom;
-                float gamma = (d00 * d21 - d01 * d20) / denom;
-                float alpha = 1.0f - beta - gamma;
+                    float denom = d00 * d11 - d01 * d01;
+                    if (std::abs(denom) < 1e-6f) {
+                        continue;
+                    }
 
-                if (alpha >= 0.0f && beta >= 0.0f && gamma >= 0.0f &&
-                    (alpha + beta + gamma) <= 1.0f + 1e-5f) {
+                    float beta = (d11 * d20 - d01 * d21) / denom;
+                    float gamma = (d00 * d21 - d01 * d20) / denom;
+                    float alpha = 1.0f - beta - gamma;
 
-                    float w1 = 1.0f / out1.position.w;
-                    float w2 = 1.0f / out2.position.w;
-                    float w3 = 1.0f / out3.position.w;
+                    if (alpha >= 0.0f && beta >= 0.0f && gamma >= 0.0f &&
+                        (alpha + beta + gamma) <= 1.0f + 1e-5f) {
 
-                    float wInterp = alpha * w1 + beta * w2 + gamma * w3;
-                    float z1 = ndc1.z;
-                    float z2 = ndc2.z;
-                    float z3 = ndc3.z;
+                        // Use 1/w from clip space for correct interpolation
+                        float w1 = 1.0f / clipVert1.w;
+                        float w2 = 1.0f / clipVert2.w;
+                        float w3 = 1.0f / clipVert3.w;
 
-                    float zInterp = (alpha * z1 * w1 + beta * z2 * w2 + gamma * z3 * w3) / wInterp;
+                        float wInterp = alpha * w1 + beta * w2 + gamma * w3;
+                        float z1 = ndc1.z;
+                        float z2 = ndc2.z;
+                        float z3 = ndc3.z;
 
-                    int index = y * m_width + x;
-                    float facingRatio = normal.dot(viewDir);
-                    float bias = 0.00001f * (1.0f - facingRatio);
-                    float depthValue = zInterp - bias;
-                    if (depthValue < m_depthBuffer[index]) {
-                        alpha *= w1 / wInterp;
-                        beta *= w2 / wInterp;
-                        gamma *= w3 / wInterp;
+                        float zInterp = (alpha * z1 * w1 + beta * z2 * w2 + gamma * z3 * w3) / wInterp;
 
-                        Vec3 worldPos = out1.worldPos * alpha + out2.worldPos * beta + out3.worldPos * gamma;
-                        Vec3 normal = (out1.normal * alpha + out2.normal * beta + out3.normal * gamma).normalized();
-                        Vec2 texCoord = Vec2(
-                            out1.texCoord.x * alpha + out2.texCoord.x * beta + out3.texCoord.x * gamma,
-                            out1.texCoord.y * alpha + out2.texCoord.y * beta + out3.texCoord.y * gamma
-                        );
-                        Color baseColor = Color(
-                            static_cast<uint8_t>(out1.color.r * alpha + out2.color.r * beta + out3.color.r * gamma),
-                            static_cast<uint8_t>(out1.color.g * alpha + out2.color.g * beta + out3.color.g * gamma),
-                            static_cast<uint8_t>(out1.color.b * alpha + out2.color.b * beta + out3.color.b * gamma),
-                            static_cast<uint8_t>(out1.color.a * alpha + out2.color.a * beta + out3.color.a * gamma)
-                        );
+                        int index = y * m_width + x;
+                        float facingRatio = normal.dot(viewDir);
+                        float bias = 0.00001f * (1.0f - facingRatio);
+                        float depthValue = zInterp - bias;
+                        
+                        if (depthValue < m_depthBuffer[index]) {
+                            // Perspective-correct interpolation
+                            alpha *= w1 / wInterp;
+                            beta *= w2 / wInterp;
+                            gamma *= w3 / wInterp;
 
-                        Vec3 normalizedNormal = normal.normalized();
+                            // Since we're using the clipped vertices, we need to approximate the attributes
+                            // A more accurate solution would track the attributes through clipping
+                            Vec3 worldPos = out1.worldPos * alpha + out2.worldPos * beta + out3.worldPos * gamma;
+                            Vec3 normal = (out1.normal * alpha + out2.normal * beta + out3.normal * gamma).normalized();
+                            Vec2 texCoord = Vec2(
+                                out1.texCoord.x * alpha + out2.texCoord.x * beta + out3.texCoord.x * gamma,
+                                out1.texCoord.y * alpha + out2.texCoord.y * beta + out3.texCoord.y * gamma
+                            );
+                            Color baseColor = Color(
+                                static_cast<uint8_t>(out1.color.r * alpha + out2.color.r * beta + out3.color.r * gamma),
+                                static_cast<uint8_t>(out1.color.g * alpha + out2.color.g * beta + out3.color.g * gamma),
+                                static_cast<uint8_t>(out1.color.b * alpha + out2.color.b * beta + out3.color.b * gamma),
+                                static_cast<uint8_t>(out1.color.a * alpha + out2.color.a * beta + out3.color.a * gamma)
+                            );
 
-                        FragmentShaderInput fragIn{worldPos, normalizedNormal, texCoord, baseColor};
+                            Vec3 normalizedNormal = normal.normalized();
 
-                        Color pixelColor = shader.fragmentShader(fragIn);
+                            FragmentShaderInput fragIn{worldPos, normalizedNormal, texCoord, baseColor};
 
-                        m_colorBuffer[index] = pixelColor.toUint32();
-                        m_depthBuffer[index] = depthValue;
+                            Color pixelColor = shader.fragmentShader(fragIn);
+
+                            m_colorBuffer[index] = pixelColor.toUint32();
+                            m_depthBuffer[index] = depthValue;
+                        }
                     }
                 }
             }

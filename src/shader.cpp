@@ -1,6 +1,7 @@
 #include "shader.h"
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 Shader::Shader() {
 }
@@ -10,10 +11,30 @@ Shader::~Shader() {
 
 VertexShaderOutput Shader::vertexShader(const VertexShaderInput& input) const {
     VertexShaderOutput output;
+    std::cout << "Projection Matrix: " << std::endl
+              << m_projection(0, 0) << ", " << m_projection(0, 1) << ", " << m_projection(0, 2) << ", " << m_projection(0, 3) << std::endl
+              << m_projection(1, 0) << ", " << m_projection(1, 1) << ", " << m_projection(1, 2) << ", " << m_projection(1, 3) << std::endl
+              << m_projection(2, 0) << ", " << m_projection(2, 1) << ", " << m_projection(2, 2) << ", " << m_projection(2, 3) << std::endl
+              << m_projection(3, 0) << ", " << m_projection(3, 1) << ", " << m_projection(3, 2) << ", " << m_projection(3, 3) << std::endl;
 
     Vec4 worldPos = m_model * Vec4(input.position, 1.0f);
+    std::cout << "World Position: "
+              << "x: " << worldPos.x << ", "
+              << "y: " << worldPos.y << ", "
+              << "z: " << worldPos.z << ", "
+              << "w: " << worldPos.w << std::endl;
     Vec4 viewPos = m_view * worldPos;
+    std::cout << "View Position: "
+              << "x: " << viewPos.x << ", "
+              << "y: " << viewPos.y << ", "
+              << "z: " << viewPos.z << ", "
+              << "w: " << viewPos.w << std::endl;
     output.position = m_projection * viewPos;
+    std::cout << "Clip Position: "
+              << "x: " << output.position.x << ", "
+              << "y: " << output.position.y << ", "
+              << "z: " << output.position.z << ", "
+              << "w: " << output.position.w << std::endl;
 
     Matrix4x4 normalMatrix = m_model;
     Vec4 transformedNormal = normalMatrix * Vec4(input.normal, 0.0f);

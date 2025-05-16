@@ -25,9 +25,9 @@ int main(int argc, char** argv) {
     }
 
     Camera camera(
-        Vec3(0.0f, 2.0f, 5.0f),
+        Vec3(0.0f, 0.0f, 5.0f),
+        Vec3(0.0f, 0.0f, 0.0f),
         Vec3(0.0f, 1.0f, 0.0f),
-        Vec3(0.0f, 0.980f, -0.196f),
         60.0f * (3.14159f / 180.0f),
         static_cast<float>(WINDOW_WIDTH) / WINDOW_HEIGHT,
         0.1f,
@@ -35,13 +35,16 @@ int main(int argc, char** argv) {
     );
 
     Mesh cubeMesh;
-    cubeMesh.createCube(Color(200, 50, 50));
+    cubeMesh.createCube(Color(80, 80, 80));
 
     Mesh sphereMesh;
     sphereMesh.createSphere(16, 16, Color(50, 50, 200));
 
     Mesh wellMesh;
     wellMesh.loadFromOBJ("assets/moto.obj");
+
+    Mesh planeMesh;
+    planeMesh.createPlane(1.0f, 1.0f, Color(80, 80, 80));
 
     PhongShader phongShader;
     phongShader.setAmbient(0.2f);
@@ -50,11 +53,11 @@ int main(int argc, char** argv) {
     phongShader.setShininess(32.0f);
 
     ToonShader toonShader;
-    toonShader.setLevels(3);
-    toonShader.setOutlineThickness(0.4f);
+    toonShader.setLevels(4);
+    toonShader.setOutlineThickness(0.2f);
     toonShader.setOutlineColor(Color(0, 0, 0, 255));
     toonShader.setEnableOutline(true);
-    toonShader.setAmbient(0.2f);
+    toonShader.setAmbient(0.3f);
     toonShader.setDiffuse(0.8f);
     toonShader.setSpecular(0.5f);
 
@@ -62,7 +65,7 @@ int main(int argc, char** argv) {
 
     Light pointLight;
     pointLight.type = Light::Type::Point;
-    pointLight.position = Vec3(5.0f, 0.0f, 0.0f);
+    pointLight.position = Vec3(0.0f, 2.0f, 0.0f);
     pointLight.color = Color(255, 255, 255);
     pointLight.intensity = 1.f;
     pointLight.range = 20.0f;
@@ -102,7 +105,7 @@ int main(int argc, char** argv) {
 
         pointLight.position = Vec3(
             5.0f * std::cos(rotation),
-            0.0f,
+            2.0f,
             5.0f * std::sin(rotation)
         );
 
@@ -111,10 +114,10 @@ int main(int argc, char** argv) {
         phongShader.addLight(pointLight);
         toonShader.addLight(pointLight);
 
-        Matrix4x4 cubeModelMatrix = Matrix4x4::translation(-2.0f, 0.5f, 0.0f);
-        Matrix4x4 sphereModelMatrix = Matrix4x4::translation(2.0f, 0.5f, 0.0f);
+        Matrix4x4 cubeModelMatrix = Matrix4x4::translation(0.0f, 0.5f, 0.0f);
+        Matrix4x4 sphereModelMatrix = Matrix4x4::translation(0.0f, 0.0f, 0.0f);
         Matrix4x4 wellModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f) * Matrix4x4::rotationY(M_PI / 4) * Matrix4x4::scaling(0.3f, 0.3f, 0.3f);
-        Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -1.5f, 0.0f) * Matrix4x4::scaling(10.0f, 1.0f, 10.0f);
+        Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f) * Matrix4x4::scaling(1.0f, 1.0f, 11.0f);
 
         phongShader.setViewMatrix(camera.getViewMatrix());
         phongShader.setProjectionMatrix(camera.getProjectionMatrix());
@@ -125,14 +128,19 @@ int main(int argc, char** argv) {
 
         rasterizer.clear(Color(20, 20, 20));
 
-        toonShader.setModelMatrix(cubeModelMatrix);
-        rasterizer.renderMesh(cubeMesh, toonShader, wireframeMode);
+        Shader* currentShader = &phongShader;
 
-        toonShader.setModelMatrix(sphereModelMatrix);
-        rasterizer.renderMesh(sphereMesh, toonShader, wireframeMode);
+        // currentShader->setModelMatrix(cubeModelMatrix);
+        // rasterizer.renderMesh(cubeMesh, *currentShader, wireframeMode);
 
-        toonShader.setModelMatrix(wellModelMatrix);
-        rasterizer.renderMesh(wellMesh, toonShader, wireframeMode);
+        // currentShader->setModelMatrix(sphereModelMatrix);
+        // rasterizer.renderMesh(sphereMesh, *currentShader, wireframeMode);
+
+        // currentShader->setModelMatrix(wellModelMatrix);
+        // rasterizer.renderMesh(wellMesh, *currentShader, wireframeMode);
+        
+        currentShader->setModelMatrix(planeModelMatrix);
+        rasterizer.renderMesh(planeMesh, *currentShader, wireframeMode);
 
         rasterizer.present();
 
