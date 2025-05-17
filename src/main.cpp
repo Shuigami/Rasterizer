@@ -106,21 +106,21 @@ int main(int argc, char** argv) {
         Matrix4x4 sphereModelMatrix = Matrix4x4::translation(0.0f, 0.0f, 0.0f);
         Matrix4x4 wellModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f) * Matrix4x4::rotationY(M_PI / 4) * Matrix4x4::scaling(0.3f, 0.3f, 0.3f);
         Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -1.0f, 0.0f) * Matrix4x4::scaling(20.0f, 1.0f, 20.0f);
-        Matrix4x4 planeBgModelMatrix = Matrix4x4::rotationX(M_PI / 2) * Matrix4x4::scaling(1.0f, 1.0f, 5.8f);
+        Matrix4x4 planeBgModelMatrix = Matrix4x4::rotationX(M_PI / 2) * Matrix4x4::scaling(1.0f, 1.0f, 10.0f);
 
         rasterizer.clear(Color(20, 20, 20));
 
         // currentShader->setModelMatrix(cubeModelMatrix);
         // rasterizer.renderMesh(cubeMesh, *currentShader);
 
-        // currentShader->setModelMatrix(sphereModelMatrix);
-        // rasterizer.renderMesh(sphereMesh, *currentShader);
+        currentShader->setModelMatrix(sphereModelMatrix);
+        rasterizer.renderMesh(sphereMesh, *currentShader);
 
         // currentShader->setModelMatrix(wellModelMatrix);
         // rasterizer.renderMesh(wellMesh, *currentShader);
         
-        // currentShader->setModelMatrix(planeModelMatrix);
-        // rasterizer.renderMesh(planeMesh, *currentShader);
+        currentShader->setModelMatrix(planeModelMatrix);
+        rasterizer.renderMesh(planeMesh, *currentShader);
 
         currentShader->setModelMatrix(planeBgModelMatrix);
         rasterizer.renderMesh(planeMesh, *currentShader);

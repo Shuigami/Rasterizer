@@ -1,4 +1,5 @@
 #include "shader.h"
+#include "logger.h"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
@@ -13,8 +14,11 @@ VertexShaderOutput Shader::vertexShader(const VertexShaderInput& input) const {
     VertexShaderOutput output;
 
     Vec4 worldPos = m_model * Vec4(input.position, 1.0f);
+    LOG_DEBUG("World position: " + std::to_string(worldPos.x) + ", " + std::to_string(worldPos.y) + ", " + std::to_string(worldPos.z));
     Vec4 viewPos = m_view * worldPos;
+    LOG_DEBUG("View position: " + std::to_string(viewPos.x) + ", " + std::to_string(viewPos.y) + ", " + std::to_string(viewPos.z));
     output.position = m_projection * viewPos;
+    LOG_DEBUG("Clip position: " + std::to_string(output.position.x) + ", " + std::to_string(output.position.y) + ", " + std::to_string(output.position.z));
 
     Matrix4x4 normalMatrix = m_model;
     Vec4 transformedNormal = normalMatrix * Vec4(input.normal, 0.0f);

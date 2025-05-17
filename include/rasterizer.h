@@ -36,4 +36,6 @@ private:
 
     Vec4 viewportTransform(const Vec4& clipCoords) const;
     bool isInsideFrustum(const Vec4& clipCoords) const;
+    bool isInsidePlane(const Vec4& position, int planeIndex, int sign);
+    float intersectionParameter(const Vec4& v1, const Vec4& v2, int planeIndex, int sign);
 };

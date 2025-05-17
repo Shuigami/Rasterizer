@@ -170,90 +170,93 @@ void Rasterizer::fillTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, co
     }
 }
 
+bool isInsidePlane(const Vec4& position, int planeIndex, int sign) {
+    switch (planeIndex) {
+        case 0:
+            return sign * position.x <= position.w;
+        case 1:
+            return sign * position.y <= position.w;
+        case 2:
+            return position.z >= -position.w;
+        case 3:
+            return position.z <= position.w;
+        default:
+            return false;
+    }
+}
+
+float intersectionParameter(const Vec4& v1, const Vec4& v2, int planeIndex, int sign) {
+    float t = 0.0f;
+    
+    switch (planeIndex) {
+        case 0:
+            t = (sign * v1.w - v1.x) / ((v2.x - v1.x) - sign * (v2.w - v1.w));
+            break;
+        case 1:
+            t = (sign * v1.w - v1.y) / ((v2.y - v1.y) - sign * (v2.w - v1.w));
+            break;
+        case 2:
+            t = (v1.z + v1.w) / ((v1.w - v2.w) - (v1.z - v2.z));
+            break;
+        case 3:
+            t = (v1.w - v1.z) / ((v1.z - v2.z) + (v1.w - v2.w));
+            break;
+    }
+    
+    return std::max(0.0f, std::min(1.0f, t));
+}
+
 // Sutherland-Hodgman Polygon Clipping with attribute interpolation
 std::vector<VertexWithAttributes> clipAgainstPlaneWithAttributes(
     const std::vector<VertexWithAttributes>& vertices, int planeIndex, int sign) {
     
-    std::vector<VertexWithAttributes> result;
-    if (vertices.empty()) return result;
-    
-    size_t numVertices = vertices.size();
-    for (size_t i = 0; i < numVertices; i++) {
-        size_t currIdx = i;
-        size_t nextIdx = (i + 1) % numVertices;
-        
-        const VertexWithAttributes& currVertex = vertices[currIdx];
-        const VertexWithAttributes& nextVertex = vertices[nextIdx];
-        
-        float currComp, nextComp;
-        if (planeIndex == 0) {
-            currComp = sign * currVertex.position.x;
-            nextComp = sign * nextVertex.position.x;
-        } else if (planeIndex == 1) {
-            currComp = sign * currVertex.position.y;
-            nextComp = sign * nextVertex.position.y;
-        } else if (planeIndex == 2) {
-            currComp = sign * currVertex.position.z;
-            nextComp = sign * nextVertex.position.z;
-        } else {
-            currComp = currVertex.position.z;
-            nextComp = nextVertex.position.z;
-        }
-        
-        bool currInside, nextInside;
-        if (planeIndex == 3) {
-            currInside = currVertex.position.z >= -currVertex.position.w;
-            nextInside = nextVertex.position.z >= -nextVertex.position.w;
-        } else {
-            currInside = currComp <= currVertex.position.w;
-            nextInside = nextComp <= nextVertex.position.w;
-        }
-        
-        if (!currInside && !nextInside) {
-            continue;
-        }
-        
-        if (!currInside && nextInside) {
-            float t;
-            if (planeIndex == 3) {
-                t = (currVertex.position.z + currVertex.position.w) / 
-                    ((currVertex.position.z + currVertex.position.w) - (nextVertex.position.z + nextVertex.position.w));
-            } else {
-                t = (sign * currVertex.position.w - currComp) / 
-                    ((sign * currVertex.position.w - currComp) - (sign * nextVertex.position.w - nextComp));
-            }
-            
-            Vec4 interpPos = currVertex.position + (nextVertex.position - currVertex.position) * t;
-            
-            VertexShaderOutput interpAttrs = VertexShaderOutput::lerp(currVertex.attributes, nextVertex.attributes, t);
-            
-            result.push_back(VertexWithAttributes(interpPos, interpAttrs));
-            result.push_back(nextVertex);
-        }
-        
-        else if (currInside && nextInside) {
-            result.push_back(nextVertex);
-        }
-        
-        else if (currInside && !nextInside) {
-            float t;
-            if (planeIndex == 3) {
-                t = (currVertex.position.z + currVertex.position.w) / 
-                    ((currVertex.position.z + currVertex.position.w) - (nextVertex.position.z + nextVertex.position.w));
-            } else {
-                t = (sign * currVertex.position.w - currComp) / 
-                    ((sign * currVertex.position.w - currComp) - (sign * nextVertex.position.w - nextComp));
-            }
-            
-            Vec4 interpPos = currVertex.position + (nextVertex.position - currVertex.position) * t;
-            
-            VertexShaderOutput interpAttrs = VertexShaderOutput::lerp(currVertex.attributes, nextVertex.attributes, t);
-            
-            result.push_back(VertexWithAttributes(interpPos, interpAttrs));
-        }
+    if (vertices.empty()) {
+        return {};
     }
     
-    return result;
+    std::vector<VertexWithAttributes> outputVertices;
+    
+    const VertexWithAttributes* previous = &vertices.back();
+    
+    for (const auto& current : vertices) {
+        bool previousInside = isInsidePlane(previous->position, planeIndex, sign);
+        bool currentInside = isInsidePlane(current.position, planeIndex, sign);
+
+        LOG_DEBUG("Clipping against plane " + std::to_string(planeIndex) + 
+            " with sign " + std::to_string(sign) + ": " +
+            "Previous inside: " + std::to_string(previousInside) + ", " +
+            "Current inside: " + std::to_string(currentInside));
+
+        LOG_DEBUG("Previous vertex: " + std::to_string(previous->position.x) + ", " +
+            std::to_string(previous->position.y) + ", " + std::to_string(previous->position.z));
+        LOG_DEBUG("Current vertex: " + std::to_string(current.position.x) + ", " +
+            std::to_string(current.position.y) + ", " + std::to_string(current.position.z));
+        
+        if (previousInside && currentInside) {
+            outputVertices.push_back(current);
+        }
+        else if (!previousInside && currentInside) {
+            float t = intersectionParameter(previous->position, current.position, planeIndex, sign);
+            VertexWithAttributes intersection;
+            intersection.position = previous->position + (current.position - previous->position) * t;
+            intersection.attributes = VertexShaderOutput::interpolate(previous->attributes, current.attributes, t);
+            
+            outputVertices.push_back(intersection);
+            outputVertices.push_back(current);
+        }
+        else if (previousInside && !currentInside) {
+            float t = intersectionParameter(previous->position, current.position, planeIndex, sign);
+            VertexWithAttributes intersection;
+            intersection.position = previous->position + (current.position - previous->position) * t;
+            intersection.attributes = VertexShaderOutput::interpolate(previous->attributes, current.attributes, t);
+            
+            outputVertices.push_back(intersection);
+        }
+        
+        previous = &current;
+    }
+    
+    return outputVertices;
 }
 
 std::vector<VertexWithAttributes> clipTriangleWithAttributes(
@@ -263,12 +266,60 @@ std::vector<VertexWithAttributes> clipTriangleWithAttributes(
     
     std::vector<VertexWithAttributes> vertices = {v1, v2, v3};
     
+    LOG_DEBUG("Vertices before clipping: " +
+        std::to_string(v1.position.x) + ", " + std::to_string(v1.position.y) + ", " + std::to_string(v1.position.z) + " | " +
+        std::to_string(v2.position.x) + ", " + std::to_string(v2.position.y) + ", " + std::to_string(v2.position.z) + " | " +
+        std::to_string(v3.position.x) + ", " + std::to_string(v3.position.y) + ", " + std::to_string(v3.position.z));
+    
+    LOG_DEBUG("Clipping triangle against planes");
+    LOG_DEBUG("Plane: x = w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 0, 1);
+    for (size_t i = 0; i < vertices.size(); i++) {
+        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
+            std::to_string(vertices[i].position.x) + ", " +
+            std::to_string(vertices[i].position.y) + ", " +
+            std::to_string(vertices[i].position.z));
+    }
+    LOG_DEBUG("Plane: x = -w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 0, -1);
+    for (size_t i = 0; i < vertices.size(); i++) {
+        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
+            std::to_string(vertices[i].position.x) + ", " +
+            std::to_string(vertices[i].position.y) + ", " +
+            std::to_string(vertices[i].position.z));
+    }
+    LOG_DEBUG("Plane: y = w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 1, 1);
+    for (size_t i = 0; i < vertices.size(); i++) {
+        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
+            std::to_string(vertices[i].position.x) + ", " +
+            std::to_string(vertices[i].position.y) + ", " +
+            std::to_string(vertices[i].position.z));
+    }
+    LOG_DEBUG("Plane: y = -w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 1, -1);
+    for (size_t i = 0; i < vertices.size(); i++) {
+        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
+            std::to_string(vertices[i].position.x) + ", " +
+            std::to_string(vertices[i].position.y) + ", " +
+            std::to_string(vertices[i].position.z));
+    }
+    LOG_DEBUG("Plane: z = w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 2, 1);
+    for (size_t i = 0; i < vertices.size(); i++) {
+        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
+            std::to_string(vertices[i].position.x) + ", " +
+            std::to_string(vertices[i].position.y) + ", " +
+            std::to_string(vertices[i].position.z));
+    }
+    LOG_DEBUG("Plane: z = -w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 3, 0);
+    for (size_t i = 0; i < vertices.size(); i++) {
+        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
+            std::to_string(vertices[i].position.x) + ", " +
+            std::to_string(vertices[i].position.y) + ", " +
+            std::to_string(vertices[i].position.z));
+    }
     
     return vertices;
 }
@@ -292,6 +343,13 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
         VertexShaderOutput out1 = shader.vertexShader(in1);
         VertexShaderOutput out2 = shader.vertexShader(in2);
         VertexShaderOutput out3 = shader.vertexShader(in3);
+
+        LOG_DEBUG("Vertex 1: " + std::to_string(out1.position.x) + ", " +
+            std::to_string(out1.position.y) + ", " + std::to_string(out1.position.z));
+        LOG_DEBUG("Vertex 2: " + std::to_string(out2.position.x) + ", " +
+            std::to_string(out2.position.y) + ", " + std::to_string(out2.position.z));
+        LOG_DEBUG("Vertex 3: " + std::to_string(out3.position.x) + ", " +
+            std::to_string(out3.position.y) + ", " + std::to_string(out3.position.z));
 
         Vec3 vertexNormal1 = out1.normal.normalized();
         Vec3 vertexNormal2 = out2.normal.normalized();
@@ -326,11 +384,31 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
             LOG_DEBUG("Triangle clipped out");
             continue;
         }
+
+        LOG_DEBUG("Triangle after clipping has " + std::to_string(clippedVertices.size()) + " vertices");
+
+        for (size_t i = 0; i < clippedVertices.size(); i++) {
+            LOG_DEBUG("Clipped vertex " + std::to_string(i) + ": " +
+                std::to_string(clippedVertices[i].position.x) + ", " +
+                std::to_string(clippedVertices[i].position.y) + ", " +
+                std::to_string(clippedVertices[i].position.z));
+        }
         
         for (size_t i = 1; i < clippedVertices.size() - 1; i++) {
             const VertexWithAttributes& clipVert1 = clippedVertices[0];
             const VertexWithAttributes& clipVert2 = clippedVertices[i];
             const VertexWithAttributes& clipVert3 = clippedVertices[i + 1];
+
+            LOG_DEBUG("Filling triangle with vertices: " +
+                std::to_string(clipVert1.position.x) + ", " +
+                std::to_string(clipVert1.position.y) + ", " +
+                std::to_string(clipVert1.position.z) + " | " +
+                std::to_string(clipVert2.position.x) + ", " +
+                std::to_string(clipVert2.position.y) + ", " +
+                std::to_string(clipVert2.position.z) + " | " +
+                std::to_string(clipVert3.position.x) + ", " +
+                std::to_string(clipVert3.position.y) + ", " +
+                std::to_string(clipVert3.position.z));
             
             const VertexShaderOutput& clipOut1 = clipVert1.attributes;
             const VertexShaderOutput& clipOut2 = clipVert2.attributes;
