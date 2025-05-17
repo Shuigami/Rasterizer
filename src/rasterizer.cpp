@@ -222,16 +222,6 @@ std::vector<VertexWithAttributes> clipAgainstPlaneWithAttributes(
         bool previousInside = isInsidePlane(previous->position, planeIndex, sign);
         bool currentInside = isInsidePlane(current.position, planeIndex, sign);
 
-        LOG_DEBUG("Clipping against plane " + std::to_string(planeIndex) + 
-            " with sign " + std::to_string(sign) + ": " +
-            "Previous inside: " + std::to_string(previousInside) + ", " +
-            "Current inside: " + std::to_string(currentInside));
-
-        LOG_DEBUG("Previous vertex: " + std::to_string(previous->position.x) + ", " +
-            std::to_string(previous->position.y) + ", " + std::to_string(previous->position.z));
-        LOG_DEBUG("Current vertex: " + std::to_string(current.position.x) + ", " +
-            std::to_string(current.position.y) + ", " + std::to_string(current.position.z));
-        
         if (previousInside && currentInside) {
             outputVertices.push_back(current);
         }
@@ -266,60 +256,12 @@ std::vector<VertexWithAttributes> clipTriangleWithAttributes(
     
     std::vector<VertexWithAttributes> vertices = {v1, v2, v3};
     
-    LOG_DEBUG("Vertices before clipping: " +
-        std::to_string(v1.position.x) + ", " + std::to_string(v1.position.y) + ", " + std::to_string(v1.position.z) + " | " +
-        std::to_string(v2.position.x) + ", " + std::to_string(v2.position.y) + ", " + std::to_string(v2.position.z) + " | " +
-        std::to_string(v3.position.x) + ", " + std::to_string(v3.position.y) + ", " + std::to_string(v3.position.z));
-    
-    LOG_DEBUG("Clipping triangle against planes");
-    LOG_DEBUG("Plane: x = w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 0, 1);
-    for (size_t i = 0; i < vertices.size(); i++) {
-        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
-            std::to_string(vertices[i].position.x) + ", " +
-            std::to_string(vertices[i].position.y) + ", " +
-            std::to_string(vertices[i].position.z));
-    }
-    LOG_DEBUG("Plane: x = -w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 0, -1);
-    for (size_t i = 0; i < vertices.size(); i++) {
-        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
-            std::to_string(vertices[i].position.x) + ", " +
-            std::to_string(vertices[i].position.y) + ", " +
-            std::to_string(vertices[i].position.z));
-    }
-    LOG_DEBUG("Plane: y = w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 1, 1);
-    for (size_t i = 0; i < vertices.size(); i++) {
-        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
-            std::to_string(vertices[i].position.x) + ", " +
-            std::to_string(vertices[i].position.y) + ", " +
-            std::to_string(vertices[i].position.z));
-    }
-    LOG_DEBUG("Plane: y = -w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 1, -1);
-    for (size_t i = 0; i < vertices.size(); i++) {
-        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
-            std::to_string(vertices[i].position.x) + ", " +
-            std::to_string(vertices[i].position.y) + ", " +
-            std::to_string(vertices[i].position.z));
-    }
-    LOG_DEBUG("Plane: z = w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 2, 1);
-    for (size_t i = 0; i < vertices.size(); i++) {
-        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
-            std::to_string(vertices[i].position.x) + ", " +
-            std::to_string(vertices[i].position.y) + ", " +
-            std::to_string(vertices[i].position.z));
-    }
-    LOG_DEBUG("Plane: z = -w");
     vertices = clipAgainstPlaneWithAttributes(vertices, 3, 0);
-    for (size_t i = 0; i < vertices.size(); i++) {
-        LOG_DEBUG("Vertex " + std::to_string(i) + ": " +
-            std::to_string(vertices[i].position.x) + ", " +
-            std::to_string(vertices[i].position.y) + ", " +
-            std::to_string(vertices[i].position.z));
-    }
     
     return vertices;
 }
