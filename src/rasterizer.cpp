@@ -536,6 +536,10 @@ void Rasterizer::renderShadowMap(const Mesh& mesh, const Shader& shader, const V
         lightForward = -lightDir.normalized();
     }
     
+    if (std::abs(lightForward.dot(Vec3(0, 1, 0))) > 0.99f) {
+        lightUp = Vec3(0, 0, 1);
+    }
+    
     Vec3 lightRight = lightForward.cross(lightUp).normalized();
     lightUp = lightRight.cross(lightForward).normalized();
     

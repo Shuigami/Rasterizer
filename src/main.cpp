@@ -83,13 +83,13 @@ int main(int argc, char** argv) {
     Light spotLight;
     spotLight.type = Light::Type::Spot;
     spotLight.position = Vec3(0.0f, 2.0f, 0.0f);
-    spotLight.direction = Vec3(1.0f, -1.0f, 0.0f);
+    spotLight.direction = Vec3(0.0f, -1.0f, 0.0f);
     spotLight.color = Color(255, 255, 255);
     spotLight.intensity = 1.2f;
     spotLight.range = 20.0f;
     spotLight.spotAngle = 0.5f;
 
-    Light *currentLight = &spotLight;
+    Light *currentLight = &pointLight;
 
     currentShader->addLight(*currentLight);
     LOG_INFO("Shaders and lighting configured");
@@ -113,16 +113,16 @@ int main(int argc, char** argv) {
         currentShader->setViewMatrix(camera.getViewMatrix());
         currentShader->setProjectionMatrix(camera.getProjectionMatrix());
 
-        // pointLight.position = Vec3(
-        //     5.0f * std::cos(rotation),
-        //     2.0f,
-        //     5.0f * std::sin(rotation)
-        // );
+        pointLight.position = Vec3(
+            5.0f * std::cos(rotation),
+            2.0f,
+            5.0f * std::sin(rotation)
+        );
 
-        // currentShader->clearLights();
-        // currentShader->addLight(pointLight);
+        currentShader->clearLights();
+        currentShader->addLight(pointLight);
 
-        Matrix4x4 sphereModelMatrix = Matrix4x4::translation(1.0f, 0.0f, 0.0f);
+        Matrix4x4 sphereModelMatrix = Matrix4x4::translation(0.0f, 0.0f, 0.0f);
         Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f) * Matrix4x4::scaling(10.0f, 1.0f, 10.0f);
 
         rasterizer.clear(Color(20, 20, 20));
