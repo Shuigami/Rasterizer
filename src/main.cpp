@@ -5,7 +5,7 @@
 #include "camera.h"
 #include "vector.h"
 #include "matrix.h"
-#include "logger.h"
+#include <logger.h>
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
@@ -75,12 +75,23 @@ int main(int argc, char** argv) {
 
     Light pointLight;
     pointLight.type = Light::Type::Point;
-    pointLight.position = Vec3(5.0f, 2.0f, 5.0f);
+    pointLight.position = Vec3(1.0f, 2.0f, 0.0f);
     pointLight.color = Color(255, 255, 255);
-    pointLight.intensity = 1.f;
+    pointLight.intensity = 1.2f;
     pointLight.range = 20.0f;
 
-    currentShader->addLight(pointLight);
+    Light spotLight;
+    spotLight.type = Light::Type::Spot;
+    spotLight.position = Vec3(0.0f, 2.0f, 0.0f);
+    spotLight.direction = Vec3(1.0f, -1.0f, 0.0f);
+    spotLight.color = Color(255, 255, 255);
+    spotLight.intensity = 1.2f;
+    spotLight.range = 20.0f;
+    spotLight.spotAngle = 0.5f;
+
+    Light *currentLight = &spotLight;
+
+    currentShader->addLight(*currentLight);
     LOG_INFO("Shaders and lighting configured");
 
     float rotation = 0.0f;
@@ -102,28 +113,38 @@ int main(int argc, char** argv) {
         currentShader->setViewMatrix(camera.getViewMatrix());
         currentShader->setProjectionMatrix(camera.getProjectionMatrix());
 
-        Matrix4x4 cubeModelMatrix = Matrix4x4::translation(0.0f, 0.5f, 0.0f);
-        Matrix4x4 sphereModelMatrix = Matrix4x4::translation(0.0f, 0.0f, 0.0f);
-        Matrix4x4 wellModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f) * Matrix4x4::rotationY(M_PI / 4) * Matrix4x4::scaling(0.3f, 0.3f, 0.3f);
-        Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -1.0f, 0.0f) * Matrix4x4::scaling(20.0f, 1.0f, 20.0f);
-        Matrix4x4 planeBgModelMatrix = Matrix4x4::rotationX(M_PI / 2) * Matrix4x4::scaling(1.0f, 1.0f, 10.0f);
+        // pointLight.position = Vec3(
+        //     5.0f * std::cos(rotation),
+        //     2.0f,
+        //     5.0f * std::sin(rotation)
+        // );
+
+        // currentShader->clearLights();
+        // currentShader->addLight(pointLight);
+
+        Matrix4x4 sphereModelMatrix = Matrix4x4::translation(1.0f, 0.0f, 0.0f);
+        Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f) * Matrix4x4::scaling(10.0f, 1.0f, 10.0f);
 
         rasterizer.clear(Color(20, 20, 20));
+        
+        Vec3 lightPos = currentLight->position;
+        Vec3 lightDir = Vec3(0.0f, 0.0f, 0.0f);
 
-        // currentShader->setModelMatrix(cubeModelMatrix);
-        // rasterizer.renderMesh(cubeMesh, *currentShader);
-
+        if (currentLight->type == Light::Type::Point) {
+            lightDir = (Vec3(0.0f, 0.0f, 0.0f) - lightPos).normalized();
+        } else if (currentLight->type == Light::Type::Directional || currentLight->type == Light::Type::Spot) {
+            lightDir = currentLight->direction.normalized();
+        }
+        
+        rasterizer.beginShadowPass();
+        
         currentShader->setModelMatrix(sphereModelMatrix);
         rasterizer.renderMesh(sphereMesh, *currentShader);
+        rasterizer.renderShadowMap(sphereMesh, *currentShader, lightPos, lightDir);
 
-        // currentShader->setModelMatrix(wellModelMatrix);
-        // rasterizer.renderMesh(wellMesh, *currentShader);
-        
         currentShader->setModelMatrix(planeModelMatrix);
         rasterizer.renderMesh(planeMesh, *currentShader);
-
-        currentShader->setModelMatrix(planeBgModelMatrix);
-        rasterizer.renderMesh(planeMesh, *currentShader);
+        rasterizer.renderShadowMap(planeMesh, *currentShader, lightPos, lightDir);
 
         rasterizer.present();
 

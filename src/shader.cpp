@@ -14,17 +14,21 @@ VertexShaderOutput Shader::vertexShader(const VertexShaderInput& input) const {
     VertexShaderOutput output;
 
     Vec4 worldPos = m_model * Vec4(input.position, 1.0f);
-    LOG_DEBUG("World position: " + std::to_string(worldPos.x) + ", " + std::to_string(worldPos.y) + ", " + std::to_string(worldPos.z));
     Vec4 viewPos = m_view * worldPos;
-    LOG_DEBUG("View position: " + std::to_string(viewPos.x) + ", " + std::to_string(viewPos.y) + ", " + std::to_string(viewPos.z));
     output.position = m_projection * viewPos;
-    LOG_DEBUG("Clip position: " + std::to_string(output.position.x) + ", " + std::to_string(output.position.y) + ", " + std::to_string(output.position.z));
 
     Matrix4x4 normalMatrix = m_model;
     Vec4 transformedNormal = normalMatrix * Vec4(input.normal, 0.0f);
     output.normal = Vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z).normalized();
 
     output.worldPos = Vec3(worldPos.x, worldPos.y, worldPos.z);
+    
+    // Calculate shadow position if shadows are enabled
+    if (m_enableShadows) {
+        output.shadowPos = m_lightProjection * m_lightView * worldPos;
+    } else {
+        output.shadowPos = Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    }
 
     output.texCoord = input.texCoord;
     output.color = input.color;
@@ -58,6 +62,9 @@ Color PhongShader::fragmentShader(const FragmentShaderInput& input) const {
     Vec3 viewDir = (m_cameraPos - input.worldPos).normalized();
 
     Color result = ambientColor;
+    
+    // Get shadow factor
+    float shadowFactor = input.shadowFactor;
 
     for (const auto& light : m_lights) {
         Vec3 lightDir;
@@ -134,6 +141,10 @@ Color PhongShader::fragmentShader(const FragmentShaderInput& input) const {
             static_cast<uint8_t>(std::min(255.0f, (specular.b * light.color.b) / 255.0f)),
             specular.a
         );
+        
+        // Apply shadow factor to diffuse and specular components only (not ambient)
+        diffuse = diffuse * shadowFactor;
+        specular = specular * shadowFactor;
 
         result = result + diffuse + specular;
     }
@@ -161,6 +172,9 @@ Color ToonShader::fragmentShader(const FragmentShaderInput& input) const {
             return m_outlineColor;
         }
     }
+    
+    // Get shadow factor
+    float shadowFactor = input.shadowFactor;
 
     for (const auto& light : m_lights) {
         Vec3 lightDir;
@@ -249,6 +263,12 @@ Color ToonShader::fragmentShader(const FragmentShaderInput& input) const {
             static_cast<uint8_t>(std::min(255.0f, (specular.b * light.color.b) / 255.0f)),
             specular.a
         );
+
+        // Apply shadow factor to diffuse and specular components (not ambient)
+        // For toon shading, we might want to step the shadow factor as well
+        float steppedShadowFactor = shadowFactor < 0.75f ? 0.5f : 1.0f;
+        diffuse = diffuse * steppedShadowFactor;
+        specular = specular * steppedShadowFactor;
 
         result = result + diffuse + specular;
     }

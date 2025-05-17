@@ -19,9 +19,13 @@ public:
     void drawTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, const Color& color);
     void fillTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, const Color& color);
     void renderMesh(const Mesh& mesh, const Shader& shader);
+    void renderShadowMap(const Mesh& mesh, const Shader& shader, const Vec3& lightPos, const Vec3& lightDir);
     void present();
     bool shouldQuit() const;
     void handleEvents();
+    
+    void beginShadowPass();
+    float getShadowFactor(const Vec3& worldPos) const;
 
 private:
     int m_width;
@@ -31,6 +35,14 @@ private:
     SDL_Texture* m_frameBuffer;
     std::vector<uint32_t> m_colorBuffer;
     std::vector<float> m_depthBuffer;
+    
+    static const int SHADOW_MAP_SIZE = 2048; 
+    std::vector<float> m_shadowMap;
+    Matrix4x4 m_lightViewMatrix;
+    Matrix4x4 m_lightProjectionMatrix;
+    Matrix4x4 m_shadowMatrix;
+    bool m_shadowsEnabled;
+    
     bool m_quit;
     bool m_wireframeMode;
 

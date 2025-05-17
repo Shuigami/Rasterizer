@@ -16,10 +16,13 @@ struct VertexWithAttributes {
 
 Rasterizer::Rasterizer(int width, int height)
     : m_width(width), m_height(height), m_window(nullptr), m_renderer(nullptr),
-      m_frameBuffer(nullptr), m_quit(false) {
+      m_frameBuffer(nullptr), m_quit(false), m_shadowsEnabled(true), m_wireframeMode(false) {
 
     m_colorBuffer.resize(width * height, 0);
     m_depthBuffer.resize(width * height, 1.0f);
+    
+    // Initialize shadow map with max depth values
+    m_shadowMap.resize(SHADOW_MAP_SIZE * SHADOW_MAP_SIZE, 1.0f);
 }
 
 Rasterizer::~Rasterizer() {
@@ -286,13 +289,6 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
         VertexShaderOutput out2 = shader.vertexShader(in2);
         VertexShaderOutput out3 = shader.vertexShader(in3);
 
-        LOG_DEBUG("Vertex 1: " + std::to_string(out1.position.x) + ", " +
-            std::to_string(out1.position.y) + ", " + std::to_string(out1.position.z));
-        LOG_DEBUG("Vertex 2: " + std::to_string(out2.position.x) + ", " +
-            std::to_string(out2.position.y) + ", " + std::to_string(out2.position.z));
-        LOG_DEBUG("Vertex 3: " + std::to_string(out3.position.x) + ", " +
-            std::to_string(out3.position.y) + ", " + std::to_string(out3.position.z));
-
         Vec3 vertexNormal1 = out1.normal.normalized();
         Vec3 vertexNormal2 = out2.normal.normalized();
         Vec3 vertexNormal3 = out3.normal.normalized();
@@ -327,31 +323,11 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
             continue;
         }
 
-        LOG_DEBUG("Triangle after clipping has " + std::to_string(clippedVertices.size()) + " vertices");
-
-        for (size_t i = 0; i < clippedVertices.size(); i++) {
-            LOG_DEBUG("Clipped vertex " + std::to_string(i) + ": " +
-                std::to_string(clippedVertices[i].position.x) + ", " +
-                std::to_string(clippedVertices[i].position.y) + ", " +
-                std::to_string(clippedVertices[i].position.z));
-        }
-        
         for (size_t i = 1; i < clippedVertices.size() - 1; i++) {
             const VertexWithAttributes& clipVert1 = clippedVertices[0];
             const VertexWithAttributes& clipVert2 = clippedVertices[i];
             const VertexWithAttributes& clipVert3 = clippedVertices[i + 1];
 
-            LOG_DEBUG("Filling triangle with vertices: " +
-                std::to_string(clipVert1.position.x) + ", " +
-                std::to_string(clipVert1.position.y) + ", " +
-                std::to_string(clipVert1.position.z) + " | " +
-                std::to_string(clipVert2.position.x) + ", " +
-                std::to_string(clipVert2.position.y) + ", " +
-                std::to_string(clipVert2.position.z) + " | " +
-                std::to_string(clipVert3.position.x) + ", " +
-                std::to_string(clipVert3.position.y) + ", " +
-                std::to_string(clipVert3.position.z));
-            
             const VertexShaderOutput& clipOut1 = clipVert1.attributes;
             const VertexShaderOutput& clipOut2 = clipVert2.attributes;
             const VertexShaderOutput& clipOut3 = clipVert3.attributes;
@@ -428,15 +404,18 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
                                 clipOut1.texCoord.y * alphaPersp + clipOut2.texCoord.y * betaPersp + clipOut3.texCoord.y * gammaPersp
                             );
                             
-                            // Use the properly interpolated colors from the clipped vertices
                             Color baseColor = Color(
                                 static_cast<uint8_t>(clipOut1.color.r * alphaPersp + clipOut2.color.r * betaPersp + clipOut3.color.r * gammaPersp),
                                 static_cast<uint8_t>(clipOut1.color.g * alphaPersp + clipOut2.color.g * betaPersp + clipOut3.color.g * gammaPersp),
                                 static_cast<uint8_t>(clipOut1.color.b * alphaPersp + clipOut2.color.b * betaPersp + clipOut3.color.b * gammaPersp),
                                 static_cast<uint8_t>(clipOut1.color.a * alphaPersp + clipOut2.color.a * betaPersp + clipOut3.color.a * gammaPersp)
                             );
+                            
+                            float shadowFactor = getShadowFactor(worldPos);
+                            
+                            Vec4 shadowPos = clipOut1.shadowPos * alphaPersp + clipOut2.shadowPos * betaPersp + clipOut3.shadowPos * gammaPersp;
 
-                            FragmentShaderInput fragIn{worldPos, normal, texCoord, baseColor};
+                            FragmentShaderInput fragIn{worldPos, normal, texCoord, baseColor, shadowPos, shadowFactor};
                             Color pixelColor = shader.fragmentShader(fragIn);
 
                             m_colorBuffer[index] = pixelColor.toUint32();
@@ -465,6 +444,181 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
                     static_cast<int>(screen1.x), static_cast<int>(screen1.y),
                     wireColor
                 );
+            }
+        }
+    }
+}
+
+void Rasterizer::beginShadowPass() {
+    std::fill(m_shadowMap.begin(), m_shadowMap.end(), 1.0f);
+    m_shadowsEnabled = true;
+}
+
+float Rasterizer::getShadowFactor(const Vec3& worldPos) const {
+    if (!m_shadowsEnabled) {
+        return 1.0f;
+    }
+
+    Vec4 shadowPos = m_shadowMatrix * Vec4(worldPos.x, worldPos.y, worldPos.z, 1.0f);
+    
+    if (std::abs(shadowPos.w) < 0.0001f) {
+        return 1.0f;
+    }
+    
+    shadowPos = shadowPos / shadowPos.w;
+    
+    float shadowX = (shadowPos.x + 1.0f) * 0.5f;
+    float shadowY = (1.0f - shadowPos.y) * 0.5f;
+    float shadowDepth = (shadowPos.z + 1.0f) * 0.5f;
+    
+    if (shadowX < 0.0f || shadowX > 1.0f || shadowY < 0.0f || shadowY > 1.0f || shadowDepth > 1.0f) {
+        return 1.0f;
+    }
+    
+    int mapX = static_cast<int>(shadowX * (SHADOW_MAP_SIZE - 1));
+    int mapY = static_cast<int>(shadowY * (SHADOW_MAP_SIZE - 1));
+    int shadowIndex = mapY * SHADOW_MAP_SIZE + mapX;
+    
+    if (shadowIndex < 0 || shadowIndex >= m_shadowMap.size()) {
+        return 1.0f;
+    }
+    
+    float storedDepth = m_shadowMap[shadowIndex];
+    
+    float bias = 0.01f;
+    
+    float shadowFactor = 1.0f;
+    
+    int pcfSize = 3;
+    int shadowCount = 0;
+    int totalSamples = 0;
+    
+    for (int y = -pcfSize; y <= pcfSize; y++) {
+        for (int x = -pcfSize; x <= pcfSize; x++) {
+            int sampleX = mapX + x;
+            int sampleY = mapY + y;
+            
+            if (sampleX >= 0 && sampleX < SHADOW_MAP_SIZE && 
+                sampleY >= 0 && sampleY < SHADOW_MAP_SIZE) {
+                
+                int sampleIndex = sampleY * SHADOW_MAP_SIZE + sampleX;
+                float sampleDepth = m_shadowMap[sampleIndex];
+                
+                if (shadowDepth - bias > sampleDepth) {
+                    shadowCount++;
+                }
+                totalSamples++;
+            }
+        }
+    }
+    
+    if (totalSamples > 0) {
+        shadowFactor = 1.0f - (static_cast<float>(shadowCount) / totalSamples) * 0.85f; // 0.85 controls shadow intensity (increased for more visible shadows)
+    }
+    
+    if (shadowCount > 0 && shadowFactor > 0.5f) {
+        shadowFactor = 0.5f;
+    }
+    
+    return shadowFactor;
+}
+
+void Rasterizer::renderShadowMap(const Mesh& mesh, const Shader& shader, const Vec3& lightPos, const Vec3& lightDir) {
+    if (!m_shadowsEnabled) {
+        return;
+    }
+    
+    Vec3 lightTarget = Vec3(0, 0, 0);
+    Vec3 lightUp = Vec3(0, 1, 0);
+    
+    Vec3 lightForward = (lightTarget - lightPos).normalized();
+    if (lightDir.length() > 0.001f) {
+        lightForward = -lightDir.normalized();
+    }
+    
+    Vec3 lightRight = lightForward.cross(lightUp).normalized();
+    lightUp = lightRight.cross(lightForward).normalized();
+    
+    m_lightViewMatrix = Matrix4x4::lookAt(lightPos, lightPos + lightForward, lightUp);
+    
+    float shadowOrthoSize = 3.0f;
+    m_lightProjectionMatrix = Matrix4x4::identity();
+    
+    m_lightProjectionMatrix(0, 0) = 1.0f / shadowOrthoSize;
+    m_lightProjectionMatrix(1, 1) = 1.0f / shadowOrthoSize;
+    m_lightProjectionMatrix(2, 2) = 2.0f / (10.0f - 0.1f);
+    m_lightProjectionMatrix(2, 3) = -(10.0f + 0.1f) / (10.0f - 0.1f);
+    
+    m_shadowMatrix = m_lightProjectionMatrix * m_lightViewMatrix;
+    
+    const std::vector<Vertex>& vertices = mesh.getVertices();
+    const std::vector<Triangle>& triangles = mesh.getTriangles();
+    
+    for (const Triangle& triangle : triangles) {
+        const Vertex& v1 = vertices[triangle.v1];
+        const Vertex& v2 = vertices[triangle.v2];
+        const Vertex& v3 = vertices[triangle.v3];
+        
+        Vec4 worldPos1 = shader.getModelMatrix() * Vec4(v1.position.x, v1.position.y, v1.position.z, 1.0f);
+        Vec4 worldPos2 = shader.getModelMatrix() * Vec4(v2.position.x, v2.position.y, v2.position.z, 1.0f);
+        Vec4 worldPos3 = shader.getModelMatrix() * Vec4(v3.position.x, v3.position.y, v3.position.z, 1.0f);
+        
+        Vec4 lightSpacePos1 = m_lightProjectionMatrix * m_lightViewMatrix * worldPos1;
+        Vec4 lightSpacePos2 = m_lightProjectionMatrix * m_lightViewMatrix * worldPos2;
+        Vec4 lightSpacePos3 = m_lightProjectionMatrix * m_lightViewMatrix * worldPos3;
+        
+        Vec4 ndcPos1 = lightSpacePos1 / lightSpacePos1.w;
+        Vec4 ndcPos2 = lightSpacePos2 / lightSpacePos2.w;
+        Vec4 ndcPos3 = lightSpacePos3 / lightSpacePos3.w;
+        
+        Vec4 shadowPos1 = Vec4((ndcPos1.x + 1.0f) * 0.5f, (1.0f - ndcPos1.y) * 0.5f, (ndcPos1.z + 1.0f) * 0.5f, 1.0f);
+        Vec4 shadowPos2 = Vec4((ndcPos2.x + 1.0f) * 0.5f, (1.0f - ndcPos2.y) * 0.5f, (ndcPos2.z + 1.0f) * 0.5f, 1.0f);
+        Vec4 shadowPos3 = Vec4((ndcPos3.x + 1.0f) * 0.5f, (1.0f - ndcPos3.y) * 0.5f, (ndcPos3.z + 1.0f) * 0.5f, 1.0f);
+        
+        Vec4 pixelPos1 = shadowPos1 * static_cast<float>(SHADOW_MAP_SIZE);
+        Vec4 pixelPos2 = shadowPos2 * static_cast<float>(SHADOW_MAP_SIZE);
+        Vec4 pixelPos3 = shadowPos3 * static_cast<float>(SHADOW_MAP_SIZE);
+        
+        int minX = std::max(0, std::min(std::min(static_cast<int>(pixelPos1.x), static_cast<int>(pixelPos2.x)), static_cast<int>(pixelPos3.x)));
+        int maxX = std::min(SHADOW_MAP_SIZE - 1, std::max(std::max(static_cast<int>(pixelPos1.x), static_cast<int>(pixelPos2.x)), static_cast<int>(pixelPos3.x)));
+        int minY = std::max(0, std::min(std::min(static_cast<int>(pixelPos1.y), static_cast<int>(pixelPos2.y)), static_cast<int>(pixelPos3.y)));
+        int maxY = std::min(SHADOW_MAP_SIZE - 1, std::max(std::max(static_cast<int>(pixelPos1.y), static_cast<int>(pixelPos2.y)), static_cast<int>(pixelPos3.y)));
+        
+        for (int y = minY; y <= maxY; y++) {
+            for (int x = minX; x <= maxX; x++) {
+                Vec2 p(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f);
+                
+                Vec2 v0(pixelPos1.x, pixelPos1.y);
+                Vec2 v1(pixelPos2.x, pixelPos2.y);
+                Vec2 v2(pixelPos3.x, pixelPos3.y);
+                
+                Vec2 e0 = v1 - v0;
+                Vec2 e1 = v2 - v0;
+                Vec2 e2 = p - v0;
+                
+                float d00 = e0.dot(e0);
+                float d01 = e0.dot(e1);
+                float d11 = e1.dot(e1);
+                float d20 = e2.dot(e0);
+                float d21 = e2.dot(e1);
+                
+                float denom = d00 * d11 - d01 * d01;
+                if (std::abs(denom) < 1e-6f) {
+                    continue;
+                }
+                
+                float beta = (d11 * d20 - d01 * d21) / denom;
+                float gamma = (d00 * d21 - d01 * d20) / denom;
+                float alpha = 1.0f - beta - gamma;
+                
+                if (alpha >= 0.0f && beta >= 0.0f && gamma >= 0.0f && (alpha + beta + gamma) <= 1.0f + 1e-5f) {
+                    float depth = alpha * shadowPos1.z + beta * shadowPos2.z + gamma * shadowPos3.z;
+                    
+                    int index = y * SHADOW_MAP_SIZE + x;
+                    if (depth < m_shadowMap[index]) {
+                        m_shadowMap[index] = depth;
+                    }
+                }
             }
         }
     }

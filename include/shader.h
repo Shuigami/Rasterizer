@@ -17,6 +17,7 @@ struct VertexShaderOutput {
     Vec3 normal;
     Vec2 texCoord;
     Color color;
+    Vec4 shadowPos;
 
     static VertexShaderOutput lerp(const VertexShaderOutput& a, const VertexShaderOutput& b, float t) {
         return {
@@ -30,7 +31,8 @@ struct VertexShaderOutput {
                 static_cast<uint8_t>(a.color.g + (b.color.g - a.color.g) * t),
                 static_cast<uint8_t>(a.color.b + (b.color.b - a.color.b) * t),
                 static_cast<uint8_t>(a.color.a + (b.color.a - a.color.a) * t)
-            )
+            ),
+            a.shadowPos + (b.shadowPos - a.shadowPos) * t
         };
     }
 
@@ -55,6 +57,8 @@ struct VertexShaderOutput {
             static_cast<uint8_t>(b),
             static_cast<uint8_t>(a)
         );
+        
+        result.shadowPos = v1.shadowPos * (1.0f - t) + v2.shadowPos * t;
 
         return result;
     }
@@ -85,6 +89,8 @@ struct VertexShaderOutput {
             static_cast<uint8_t>(b),
             static_cast<uint8_t>(a)
         );
+        
+        result.shadowPos = v1.shadowPos * w1 + v2.shadowPos * w2 + v3.shadowPos * w3;
 
         return result;
     }
@@ -95,6 +101,8 @@ struct FragmentShaderInput {
     Vec3 normal;
     Vec2 texCoord;
     Color color;
+    Vec4 shadowPos;
+    float shadowFactor;
 };
 
 struct Light {
@@ -130,6 +138,12 @@ public:
     void setModelMatrix(const Matrix4x4& model) { m_model = model; }
     void setViewMatrix(const Matrix4x4& view) { m_view = view; }
     void setProjectionMatrix(const Matrix4x4& projection) { m_projection = projection; }
+    void setLightViewMatrix(const Matrix4x4& lightView) { m_lightView = lightView; }
+    void setLightProjectionMatrix(const Matrix4x4& lightProj) { m_lightProjection = lightProj; }
+    void setEnableShadows(bool enable) { m_enableShadows = enable; }
+    bool areShadowsEnabled() const { return m_enableShadows; }
+    
+    const Matrix4x4& getModelMatrix() const { return m_model; }
 
     virtual void setCameraPosition(const Vec3& cameraPos) = 0;
     virtual Vec3 getCameraPosition() const = 0;
@@ -148,6 +162,9 @@ protected:
     Matrix4x4 m_model;
     Matrix4x4 m_view;
     Matrix4x4 m_projection;
+    Matrix4x4 m_lightView;
+    Matrix4x4 m_lightProjection;
+    bool m_enableShadows = false;
     std::vector<Light> m_lights;
 };
 
