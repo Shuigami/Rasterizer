@@ -168,7 +168,8 @@ Color ToonShader::fragmentShader(const FragmentShaderInput& input) const {
 
     if (m_enableOutline) {
         float edgeFactor = input.normal.dot(viewDir);
-        if (edgeFactor < m_outlineThickness) {
+        float threshold = fabsf(input.normal.y) > 0.99f ? 0.05f : m_outlineThickness;
+        if (edgeFactor < threshold) {
             return m_outlineColor;
         }
     }
@@ -230,8 +231,14 @@ Color ToonShader::fragmentShader(const FragmentShaderInput& input) const {
 
         float diffuseFactor = std::max(0.0f, input.normal.dot(lightDir));
 
-        if (diffuseFactor > 0.0f) {
-            diffuseFactor = std::ceil(diffuseFactor * m_levels) / m_levels;
+        if (fabsf(input.normal.y) > 0.99f) {
+            if (diffuseFactor > 0.0f) {
+                diffuseFactor = std::ceil(diffuseFactor * (m_levels + 2)) / (m_levels + 2);
+            }
+        } else {
+            if (diffuseFactor > 0.0f) {
+                diffuseFactor = std::ceil(diffuseFactor * m_levels) / m_levels;
+            }
         }
 
         Color diffuse = baseColor * (diffuseFactor * m_diffuse * light.intensity * attenuation);
@@ -264,9 +271,14 @@ Color ToonShader::fragmentShader(const FragmentShaderInput& input) const {
             specular.a
         );
 
-        // Apply shadow factor to diffuse and specular components (not ambient)
-        // For toon shading, we might want to step the shadow factor as well
-        float steppedShadowFactor = shadowFactor < 0.75f ? 0.5f : 1.0f;
+        float steppedShadowFactor;
+        
+        if (fabsf(input.normal.y) > 0.99f) {
+            steppedShadowFactor = shadowFactor < 0.8f ? 0.4f : 1.0f;
+        } else {
+            steppedShadowFactor = shadowFactor < 0.75f ? 0.5f : 1.0f;
+        }
+        
         diffuse = diffuse * steppedShadowFactor;
         specular = specular * steppedShadowFactor;
 

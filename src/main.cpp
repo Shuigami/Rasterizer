@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
 
     FlatShader flatShader(Color(200, 50, 50));
 
-    Shader* currentShader = &phongShader;
+    Shader* currentShader = &toonShader;
 
     Light pointLight;
     pointLight.type = Light::Type::Point;
