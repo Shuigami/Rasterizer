@@ -388,7 +388,7 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
 
                         int index = y * m_width + x;
                         float facingRatio = normal.dot(viewDir);
-                        float bias = 0.00001f * (1.0f - facingRatio);
+                        float bias = 1.0f - facingRatio;
                         float depthValue = zInterp - bias;
                         
                         if (depthValue < m_depthBuffer[index]) {

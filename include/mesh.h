@@ -32,6 +32,7 @@ public:
     void createCube(const Color& color = Color(255, 255, 255));
     void createSphere(int slices, int stacks, const Color& color = Color(255, 255, 255));
     void createPlane(float width, float depth, const Color& color = Color(255, 255, 255));
+    void createTriangle(float width, float depth, const Color& color = Color(255, 255, 255));
     void generateNormals();
 
     void setVertexColor(int index, const Color& color);

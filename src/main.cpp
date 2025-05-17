@@ -50,7 +50,11 @@ int main(int argc, char** argv) {
     wellMesh.loadFromOBJ("assets/moto.obj");
 
     Mesh planeMesh;
-    planeMesh.createPlane(1.0f, 1.0f, Color(255, 255, 255));
+    planeMesh.createPlane(10.0f, 10.0f, Color(255, 0, 0));
+
+    Mesh triangleMesh;
+    triangleMesh.createTriangle(1.0f, 1.0f, Color(0, 0, 255));
+
     LOG_INFO("All meshes loaded successfully");
 
     LOG_INFO("Setting up shaders...");
@@ -122,8 +126,10 @@ int main(int argc, char** argv) {
         currentShader->clearLights();
         currentShader->addLight(pointLight);
 
+        Matrix4x4 cubeModelMatrix = Matrix4x4::translation(0.0f, -1.0f, 0.0f);
         Matrix4x4 sphereModelMatrix = Matrix4x4::translation(0.0f, 0.0f, 0.0f);
-        Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f) * Matrix4x4::scaling(10.0f, 1.0f, 10.0f);
+        Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f);
+        Matrix4x4 planeModelMatrix2 = Matrix4x4::identity();
 
         rasterizer.clear(Color(20, 20, 20));
         
@@ -139,16 +145,18 @@ int main(int argc, char** argv) {
         rasterizer.beginShadowPass();
         
         currentShader->setModelMatrix(sphereModelMatrix);
-        rasterizer.renderMesh(sphereMesh, *currentShader);
         rasterizer.renderShadowMap(sphereMesh, *currentShader, lightPos, lightDir);
+        
+        currentShader->setModelMatrix(planeModelMatrix);
+        rasterizer.renderShadowMap(planeMesh, *currentShader, lightPos, lightDir);
+
+        currentShader->setModelMatrix(sphereModelMatrix);
+        rasterizer.renderMesh(sphereMesh, *currentShader);
 
         currentShader->setModelMatrix(planeModelMatrix);
         rasterizer.renderMesh(planeMesh, *currentShader);
-        rasterizer.renderShadowMap(planeMesh, *currentShader, lightPos, lightDir);
 
         rasterizer.present();
-
-        SDL_Delay(16);
     }
 
     LOG_INFO("Shutting down application");

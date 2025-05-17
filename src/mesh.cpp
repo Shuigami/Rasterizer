@@ -3,6 +3,7 @@
 #include <sstream>
 #include <iostream>
 #include <cmath>
+#include <logger.h>
 
 Mesh::Mesh() {
 }
@@ -316,51 +317,70 @@ void Mesh::setGradientColors(const Color& startColor, const Color& endColor, boo
 }
 
 void Mesh::createPlane(float width, float depth, const Color& color) {
-    // Clear any existing data
     m_vertices.clear();
     m_triangles.clear();
     
-    // Calculate half dimensions
     float halfWidth = width / 2.0f;
     float halfDepth = depth / 2.0f;
     
-    // Define the 4 corners of the plane on the XZ plane (Y is up)
     Vertex v1, v2, v3, v4;
     
-    // Bottom left
     v1.position = Vec3(-halfWidth, 0, -halfDepth);
     v1.normal = Vec3(0, 1, 0);
     v1.color = color;
     v1.texCoord = Vec2(0, 0);
     
-    // Bottom right
     v2.position = Vec3(halfWidth, 0, -halfDepth);
     v2.normal = Vec3(0, 1, 0);
     v2.color = color;
     v2.texCoord = Vec2(1, 0);
     
-    // Top right
     v3.position = Vec3(halfWidth, 0, halfDepth);
     v3.normal = Vec3(0, 1, 0);
     v3.color = color;
     v3.texCoord = Vec2(1, 1);
     
-    // Top left
     v4.position = Vec3(-halfWidth, 0, halfDepth);
     v4.normal = Vec3(0, 1, 0);
     v4.color = color;
     v4.texCoord = Vec2(0, 1);
 
-    // Add vertices
     m_vertices.push_back(v1);
     m_vertices.push_back(v2);
     m_vertices.push_back(v3);
     m_vertices.push_back(v4);
     
-    // Add indices for triangles
-    // First triangle (bottom-left, bottom-right, top-right)
     m_triangles.push_back(Triangle(0, 1, 2));
-    
-    // Second triangle (bottom-left, top-right, top-left)
     m_triangles.push_back(Triangle(0, 2, 3));
+}
+
+void Mesh::createTriangle(float width, float depth, const Color& color) {
+    m_vertices.clear();
+    m_triangles.clear();
+    
+    float halfWidth = width / 2.0f;
+    float halfDepth = depth / 2.0f;
+    
+    Vertex v1, v2, v3;
+    
+    v1.position = Vec3(-halfWidth, halfDepth, 0);
+    v1.normal = Vec3(0, 1, 0);
+    v1.color = color;
+    v1.texCoord = Vec2(0, 0);
+    
+    v2.position = Vec3(halfWidth, halfDepth, 0);
+    v2.normal = Vec3(0, 1, 0);
+    v2.color = color;
+    v2.texCoord = Vec2(1, 0);
+    
+    v3.position = Vec3(0, -halfDepth, 0);
+    v3.normal = Vec3(0, 1, 0);
+    v3.color = color;
+    v3.texCoord = Vec2(0.5f, 1);
+
+    m_vertices.push_back(v1);
+    m_vertices.push_back(v2);
+    m_vertices.push_back(v3);
+    
+    m_triangles.push_back(Triangle(0, 1, 2));
 }
