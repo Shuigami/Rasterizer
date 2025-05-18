@@ -120,6 +120,19 @@ struct Light {
     float range;
     float spotAngle;
 
+    Vec3 getDirection() const {
+        switch (type) {
+            case Type::Directional:
+                return direction.normalized();
+            case Type::Point:
+                return (Vec3(0.0f, 0.0f, 0.0f) - position).normalized();
+            case Type::Spot:
+                return direction.normalized();
+            default:
+                return Vec3(0.0f, 0.0f, 0.0f);
+        }
+    }
+
     Light()
         : type(Type::Directional),
           position(0.0f, 0.0f, 0.0f),
@@ -150,6 +163,9 @@ public:
     }
     void clearLights() {
         m_lights.clear();
+    }
+    const std::vector<Light>& getLights() const {
+        return m_lights;
     }
 
     virtual VertexShaderOutput vertexShader(const VertexShaderInput& input, Matrix4x4 model) const;

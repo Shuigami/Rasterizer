@@ -537,11 +537,16 @@ float Rasterizer::getShadowFactor(const Vec3& worldPos) const {
     return shadowFactor;
 }
 
-void Rasterizer::renderShadowMap(const Mesh& mesh, const Shader& shader, const Vec3& lightPos, const Vec3& lightDir) {
+void Rasterizer::renderShadowMap(const Mesh& mesh, const Shader& shader) {
     if (!m_shadowsEnabled) {
         return;
     }
-    
+
+    const std::vector<Light>& lights = shader.getLights();
+
+    Vec3 lightPos = lights[0].position;
+    Vec3 lightDir = lights[0].getDirection();
+
     Vec3 lightTarget = Vec3(0, 0, 0);
     Vec3 lightUp = Vec3(0, 1, 0);
     

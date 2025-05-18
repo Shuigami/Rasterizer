@@ -19,7 +19,7 @@ public:
     void drawTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, const Color& color);
     void fillTriangle(const Vec4& v1, const Vec4& v2, const Vec4& v3, const Color& color);
     void renderMesh(const Mesh& mesh, const Shader& shader);
-    void renderShadowMap(const Mesh& mesh, const Shader& shader, const Vec3& lightPos, const Vec3& lightDir);
+    void renderShadowMap(const Mesh& mesh, const Shader& shader);
     void present();
     bool shouldQuit() const;
     void handleEvents();

@@ -29,8 +29,8 @@ int main(int argc, char** argv) {
     }
 
     Camera camera(
-        Vec3(0.0f, 0.0f, 5.0f),
-        Vec3(0.0f, 0.0f, 0.0f),
+        Vec3(0.0f, 1.0f, 5.0f),
+        Vec3(0.0f, 1.0f, 0.0f),
         Vec3(0.0f, 1.0f, 0.0f),
         60.0f * (3.14159f / 180.0f),
         static_cast<float>(WINDOW_WIDTH) / WINDOW_HEIGHT,
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
 
     FlatShader flatShader(Color(200, 50, 50));
 
-    Shader* currentShader = &toonShader;
+    Shader* currentShader = &phongShader;
 
     Light pointLight;
     pointLight.type = Light::Type::Point;
@@ -99,54 +99,41 @@ int main(int argc, char** argv) {
     uint32_t lastTick = SDL_GetTicks();
     LOG_INFO("Starting render loop");
 
-    Matrix4x4 cubeModelMatrix = Matrix4x4::translation(0.0f, -1.0f, 0.0f);
-    cubeMesh.setModelMatrix(cubeModelMatrix);
-    Matrix4x4 sphereModelMatrix = Matrix4x4::translation(0.0f, -1.0f, 0.0f);
-    sphereMesh.setModelMatrix(sphereModelMatrix);
-    Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f);
-    planeMesh.setModelMatrix(planeModelMatrix);
+    cubeMesh.setModelMatrix(Matrix4x4::translation(1.0f, -1.0f, 0.0f));
+    // sphereMesh.setModelMatrix(Matrix4x4::translation(0.0f, -1.0f, 0.0f));
+    planeMesh.setModelMatrix(Matrix4x4::translation(1.0f, -0.5f, 0.0f));
+
+    Vec3 cameraPos = camera.getPosition();
+    currentShader->setCameraPosition(cameraPos);
+    currentShader->setViewMatrix(camera.getViewMatrix());
+    currentShader->setProjectionMatrix(camera.getProjectionMatrix());
 
     while (!rasterizer.shouldQuit()) {
         rasterizer.handleEvents();
-
-        Vec3 cameraPos = camera.getPosition();
 
         uint32_t currentTick = SDL_GetTicks();
         float deltaTime = (currentTick - lastTick) / 1000.0f;
         lastTick = currentTick;
 
         rotation += 0.7f * deltaTime;
-        
-        currentShader->setCameraPosition(cameraPos);
-        currentShader->setViewMatrix(camera.getViewMatrix());
-        currentShader->setProjectionMatrix(camera.getProjectionMatrix());
 
-        pointLight.position = Vec3(
+        currentLight->position = Vec3(
             5.0f * std::cos(rotation),
             2.0f,
             5.0f 
         );
 
         currentShader->clearLights();
-        currentShader->addLight(pointLight);
+        currentShader->addLight(*currentLight);
 
         rasterizer.clear(Color(20, 20, 20));
 
-        sphereMesh.setModelMatrix(Matrix4x4::translation(0.0f, std::sin(rotation), 0.0f));
-        
-        Vec3 lightPos = currentLight->position;
-        Vec3 lightDir = Vec3(0.0f, 0.0f, 0.0f);
-
-        if (currentLight->type == Light::Type::Point) {
-            lightDir = (Vec3(0.0f, 0.0f, 0.0f) - lightPos).normalized();
-        } else if (currentLight->type == Light::Type::Directional || currentLight->type == Light::Type::Spot) {
-            lightDir = currentLight->direction.normalized();
-        }
+        sphereMesh.setModelMatrix(Matrix4x4::translation(1.0f, std::sin(rotation), 0.0f));
         
         rasterizer.beginShadowPass();
         
-        rasterizer.renderShadowMap(sphereMesh, *currentShader, lightPos, lightDir);
-        rasterizer.renderShadowMap(planeMesh, *currentShader, lightPos, lightDir);
+        rasterizer.renderShadowMap(sphereMesh, *currentShader);
+        rasterizer.renderShadowMap(planeMesh, *currentShader);
 
         rasterizer.renderMesh(sphereMesh, *currentShader);
         rasterizer.renderMesh(planeMesh, *currentShader);
