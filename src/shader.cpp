@@ -10,14 +10,14 @@ Shader::Shader() {
 Shader::~Shader() {
 }
 
-VertexShaderOutput Shader::vertexShader(const VertexShaderInput& input) const {
+VertexShaderOutput Shader::vertexShader(const VertexShaderInput& input, Matrix4x4 model) const {
     VertexShaderOutput output;
 
-    Vec4 worldPos = m_model * Vec4(input.position, 1.0f);
+    Vec4 worldPos = model * Vec4(input.position, 1.0f);
     Vec4 viewPos = m_view * worldPos;
     output.position = m_projection * viewPos;
 
-    Matrix4x4 normalMatrix = m_model;
+    Matrix4x4 normalMatrix = model;
     Vec4 transformedNormal = normalMatrix * Vec4(input.normal, 0.0f);
     output.normal = Vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z).normalized();
 

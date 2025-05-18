@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <iostream>
 
-// Define a struct to track vertex positions and attributes during clipping
 struct VertexWithAttributes {
     Vec4 position;
     VertexShaderOutput attributes;
@@ -21,7 +20,6 @@ Rasterizer::Rasterizer(int width, int height)
     m_colorBuffer.resize(width * height, 0);
     m_depthBuffer.resize(width * height, 1.0f);
     
-    // Initialize shadow map with max depth values
     m_shadowMap.resize(SHADOW_MAP_SIZE * SHADOW_MAP_SIZE, 1.0f);
 }
 
@@ -272,6 +270,7 @@ std::vector<VertexWithAttributes> clipTriangleWithAttributes(
 void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
     const std::vector<Vertex>& vertices = mesh.getVertices();
     const std::vector<Triangle>& triangles = mesh.getTriangles();
+    Matrix4x4 modelMatrix = mesh.getModelMatrix();
     
     LOG_DEBUG("Rendering mesh with " + std::to_string(vertices.size()) + " vertices and " + 
              std::to_string(triangles.size()) + " triangles");
@@ -285,9 +284,9 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
         VertexShaderInput in2{v2.position, v2.normal, v2.texCoord, v2.color};
         VertexShaderInput in3{v3.position, v3.normal, v3.texCoord, v3.color};
 
-        VertexShaderOutput out1 = shader.vertexShader(in1);
-        VertexShaderOutput out2 = shader.vertexShader(in2);
-        VertexShaderOutput out3 = shader.vertexShader(in3);
+        VertexShaderOutput out1 = shader.vertexShader(in1, modelMatrix); 
+        VertexShaderOutput out2 = shader.vertexShader(in2, modelMatrix);
+        VertexShaderOutput out3 = shader.vertexShader(in3, modelMatrix);
 
         Vec3 vertexNormal1 = out1.normal.normalized();
         Vec3 vertexNormal2 = out2.normal.normalized();
@@ -323,6 +322,18 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
             continue;
         }
 
+        LOG_DEBUG("Clipped triangle with " + std::to_string(clippedVertices.size()) + " vertices");
+
+        std::vector<Vec4> screens;
+
+        for (const auto& vertex : clippedVertices) {
+            Vec4 ndc = vertex.position / vertex.position.w;
+            Vec4 screen = viewportTransform(ndc);
+            screens.push_back(screen);
+        }
+
+        int counter = 0;
+
         for (size_t i = 1; i < clippedVertices.size() - 1; i++) {
             const VertexWithAttributes& clipVert1 = clippedVertices[0];
             const VertexWithAttributes& clipVert2 = clippedVertices[i];
@@ -336,9 +347,9 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
             Vec4 ndc2 = clipVert2.position / clipVert2.position.w;
             Vec4 ndc3 = clipVert3.position / clipVert3.position.w;
 
-            Vec4 screen1 = viewportTransform(ndc1);
-            Vec4 screen2 = viewportTransform(ndc2);
-            Vec4 screen3 = viewportTransform(ndc3);
+            Vec4 screen1 = screens[0];
+            Vec4 screen2 = screens[i];
+            Vec4 screen3 = screens[i + 1];
 
             int minX = std::max(0, std::min(std::min(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
             int maxX = std::min(m_width - 1, std::max(std::max(static_cast<int>(screen1.x), static_cast<int>(screen2.x)), static_cast<int>(screen3.x)));
@@ -388,7 +399,7 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
 
                         int index = y * m_width + x;
                         float facingRatio = normal.dot(viewDir);
-                        float bias = 1.0f - facingRatio;
+                        float bias = 0.00001f * (1.0f - facingRatio);
                         float depthValue = zInterp - bias;
                         
                         if (depthValue < m_depthBuffer[index]) {
@@ -420,6 +431,8 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
 
                             m_colorBuffer[index] = pixelColor.toUint32();
                             m_depthBuffer[index] = depthValue;
+
+                            counter++;
                         }
                     }
                 }
@@ -446,6 +459,7 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
                 );
             }
         }
+        LOG_DEBUG("Rendered " + std::to_string(counter) + " pixels");
     }
 }
 
@@ -513,7 +527,7 @@ float Rasterizer::getShadowFactor(const Vec3& worldPos) const {
     }
     
     if (totalSamples > 0) {
-        shadowFactor = 1.0f - (static_cast<float>(shadowCount) / totalSamples) * 0.85f; // 0.85 controls shadow intensity (increased for more visible shadows)
+        shadowFactor = 1.0f - (static_cast<float>(shadowCount) / totalSamples) * 0.85f;
     }
     
     if (shadowCount > 0 && shadowFactor > 0.5f) {
@@ -563,9 +577,9 @@ void Rasterizer::renderShadowMap(const Mesh& mesh, const Shader& shader, const V
         const Vertex& v2 = vertices[triangle.v2];
         const Vertex& v3 = vertices[triangle.v3];
         
-        Vec4 worldPos1 = shader.getModelMatrix() * Vec4(v1.position.x, v1.position.y, v1.position.z, 1.0f);
-        Vec4 worldPos2 = shader.getModelMatrix() * Vec4(v2.position.x, v2.position.y, v2.position.z, 1.0f);
-        Vec4 worldPos3 = shader.getModelMatrix() * Vec4(v3.position.x, v3.position.y, v3.position.z, 1.0f);
+        Vec4 worldPos1 = mesh.getModelMatrix() * Vec4(v1.position.x, v1.position.y, v1.position.z, 1.0f);
+        Vec4 worldPos2 = mesh.getModelMatrix() * Vec4(v2.position.x, v2.position.y, v2.position.z, 1.0f);
+        Vec4 worldPos3 = mesh.getModelMatrix() * Vec4(v3.position.x, v3.position.y, v3.position.z, 1.0f);
         
         Vec4 lightSpacePos1 = m_lightProjectionMatrix * m_lightViewMatrix * worldPos1;
         Vec4 lightSpacePos2 = m_lightProjectionMatrix * m_lightViewMatrix * worldPos2;

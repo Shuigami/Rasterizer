@@ -135,7 +135,6 @@ public:
     Shader();
     virtual ~Shader();
 
-    void setModelMatrix(const Matrix4x4& model) { m_model = model; }
     void setViewMatrix(const Matrix4x4& view) { m_view = view; }
     void setProjectionMatrix(const Matrix4x4& projection) { m_projection = projection; }
     void setLightViewMatrix(const Matrix4x4& lightView) { m_lightView = lightView; }
@@ -143,8 +142,6 @@ public:
     void setEnableShadows(bool enable) { m_enableShadows = enable; }
     bool areShadowsEnabled() const { return m_enableShadows; }
     
-    const Matrix4x4& getModelMatrix() const { return m_model; }
-
     virtual void setCameraPosition(const Vec3& cameraPos) = 0;
     virtual Vec3 getCameraPosition() const = 0;
 
@@ -155,11 +152,10 @@ public:
         m_lights.clear();
     }
 
-    virtual VertexShaderOutput vertexShader(const VertexShaderInput& input) const;
+    virtual VertexShaderOutput vertexShader(const VertexShaderInput& input, Matrix4x4 model) const;
     virtual Color fragmentShader(const FragmentShaderInput& input) const;
 
 protected:
-    Matrix4x4 m_model;
     Matrix4x4 m_view;
     Matrix4x4 m_projection;
     Matrix4x4 m_lightView;

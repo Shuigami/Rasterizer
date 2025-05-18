@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include "vector.h"
+#include "matrix.h"
 
 struct Vertex {
     Vec3 position;
@@ -43,12 +44,16 @@ public:
     void setRandomVertexColors();
     void setGradientColors(const Color& startColor, const Color& endColor, bool verticalGradient = true);
 
+    void setModelMatrix(const Matrix4x4& model) { m_model = model; }
+    const Matrix4x4& getModelMatrix() const { return m_model; }
+
     const std::vector<Vertex>& getVertices() const { return m_vertices; }
     std::vector<Vertex>& getVertices() { return m_vertices; }
     const std::vector<Triangle>& getTriangles() const { return m_triangles; }
     std::vector<Triangle>& getTriangles() { return m_triangles; }
 
 private:
+    Matrix4x4 m_model;
     std::vector<Vertex> m_vertices;
     std::vector<Triangle> m_triangles;
 };

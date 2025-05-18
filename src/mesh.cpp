@@ -6,6 +6,7 @@
 #include <logger.h>
 
 Mesh::Mesh() {
+    m_model = Matrix4x4::identity();
 }
 
 Mesh::~Mesh() {

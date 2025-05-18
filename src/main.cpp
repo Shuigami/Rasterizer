@@ -46,14 +46,11 @@ int main(int argc, char** argv) {
     Mesh sphereMesh;
     sphereMesh.createSphere(16, 16, Color(50, 50, 200));
 
-    Mesh wellMesh;
-    wellMesh.loadFromOBJ("assets/moto.obj");
-
     Mesh planeMesh;
-    planeMesh.createPlane(10.0f, 10.0f, Color(255, 0, 0));
+    planeMesh.createPlane(2.0f, 2.0f, Color(255, 0, 0));
 
     Mesh triangleMesh;
-    triangleMesh.createTriangle(1.0f, 1.0f, Color(0, 0, 255));
+    triangleMesh.createTriangle(5.5f, 5.5f, Color(0, 0, 255));
 
     LOG_INFO("All meshes loaded successfully");
 
@@ -79,7 +76,7 @@ int main(int argc, char** argv) {
 
     Light pointLight;
     pointLight.type = Light::Type::Point;
-    pointLight.position = Vec3(1.0f, 2.0f, 0.0f);
+    pointLight.position = Vec3(2.0f, 2.0f, 2.0f);
     pointLight.color = Color(255, 255, 255);
     pointLight.intensity = 1.2f;
     pointLight.range = 20.0f;
@@ -102,6 +99,13 @@ int main(int argc, char** argv) {
     uint32_t lastTick = SDL_GetTicks();
     LOG_INFO("Starting render loop");
 
+    Matrix4x4 cubeModelMatrix = Matrix4x4::translation(0.0f, -1.0f, 0.0f);
+    cubeMesh.setModelMatrix(cubeModelMatrix);
+    Matrix4x4 sphereModelMatrix = Matrix4x4::translation(0.0f, -1.0f, 0.0f);
+    sphereMesh.setModelMatrix(sphereModelMatrix);
+    Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f);
+    planeMesh.setModelMatrix(planeModelMatrix);
+
     while (!rasterizer.shouldQuit()) {
         rasterizer.handleEvents();
 
@@ -120,18 +124,15 @@ int main(int argc, char** argv) {
         pointLight.position = Vec3(
             5.0f * std::cos(rotation),
             2.0f,
-            5.0f * std::sin(rotation)
+            5.0f 
         );
 
         currentShader->clearLights();
         currentShader->addLight(pointLight);
 
-        Matrix4x4 cubeModelMatrix = Matrix4x4::translation(0.0f, -1.0f, 0.0f);
-        Matrix4x4 sphereModelMatrix = Matrix4x4::translation(0.0f, 0.0f, 0.0f);
-        Matrix4x4 planeModelMatrix = Matrix4x4::translation(0.0f, -0.5f, 0.0f);
-        Matrix4x4 planeModelMatrix2 = Matrix4x4::identity();
-
         rasterizer.clear(Color(20, 20, 20));
+
+        sphereMesh.setModelMatrix(Matrix4x4::translation(0.0f, std::sin(rotation), 0.0f));
         
         Vec3 lightPos = currentLight->position;
         Vec3 lightDir = Vec3(0.0f, 0.0f, 0.0f);
@@ -144,16 +145,10 @@ int main(int argc, char** argv) {
         
         rasterizer.beginShadowPass();
         
-        currentShader->setModelMatrix(sphereModelMatrix);
         rasterizer.renderShadowMap(sphereMesh, *currentShader, lightPos, lightDir);
-        
-        currentShader->setModelMatrix(planeModelMatrix);
         rasterizer.renderShadowMap(planeMesh, *currentShader, lightPos, lightDir);
 
-        currentShader->setModelMatrix(sphereModelMatrix);
         rasterizer.renderMesh(sphereMesh, *currentShader);
-
-        currentShader->setModelMatrix(planeModelMatrix);
         rasterizer.renderMesh(planeMesh, *currentShader);
 
         rasterizer.present();
