@@ -37,10 +37,14 @@ private:
     std::vector<float> m_depthBuffer;
     
     static const int SHADOW_MAP_SIZE = 2048; 
-    std::vector<float> m_shadowMap;
-    Matrix4x4 m_lightViewMatrix;
-    Matrix4x4 m_lightProjectionMatrix;
-    Matrix4x4 m_shadowMatrix;
+    static const int MAX_LIGHTS = 8;
+    struct LightData {
+        std::vector<float> shadowMap;
+        Matrix4x4 viewMatrix;
+        Matrix4x4 projectionMatrix;
+        Matrix4x4 shadowMatrix;
+    };
+    std::vector<LightData> m_lightData;
     bool m_shadowsEnabled;
     
     bool m_quit;

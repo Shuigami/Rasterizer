@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
 
     FlatShader flatShader(Color(200, 50, 50));
 
-    Shader* currentShader = &phongShader;
+    Shader* currentShader = &toonShader;
 
     Light pointLight;
     pointLight.type = Light::Type::Point;
@@ -80,6 +80,13 @@ int main(int argc, char** argv) {
     pointLight.color = Color(255, 255, 255);
     pointLight.intensity = 1.2f;
     pointLight.range = 20.0f;
+
+    Light pointLight2;
+    pointLight2.type = Light::Type::Point;
+    pointLight2.position = Vec3(-2.0f, 2.0f, 2.0f);
+    pointLight2.color = Color(255, 255, 255);
+    pointLight2.intensity = 1.2f;
+    pointLight2.range = 20.0f;
 
     Light spotLight;
     spotLight.type = Light::Type::Spot;
@@ -93,15 +100,17 @@ int main(int argc, char** argv) {
     Light *currentLight = &pointLight;
 
     currentShader->addLight(*currentLight);
+    currentShader->addLight(pointLight2);
+
     LOG_INFO("Shaders and lighting configured");
 
     float rotation = 0.0f;
     uint32_t lastTick = SDL_GetTicks();
     LOG_INFO("Starting render loop");
 
-    cubeMesh.setModelMatrix(Matrix4x4::translation(1.0f, -1.0f, 0.0f));
+    cubeMesh.setModelMatrix(Matrix4x4::translation(0.0f, -1.0f, 0.0f));
     // sphereMesh.setModelMatrix(Matrix4x4::translation(0.0f, -1.0f, 0.0f));
-    planeMesh.setModelMatrix(Matrix4x4::translation(1.0f, -0.5f, 0.0f));
+    planeMesh.setModelMatrix(Matrix4x4::translation(0.0f, -0.5f, 0.0f));
 
     Vec3 cameraPos = camera.getPosition();
     currentShader->setCameraPosition(cameraPos);
@@ -111,24 +120,24 @@ int main(int argc, char** argv) {
     while (!rasterizer.shouldQuit()) {
         rasterizer.handleEvents();
 
-        uint32_t currentTick = SDL_GetTicks();
-        float deltaTime = (currentTick - lastTick) / 1000.0f;
-        lastTick = currentTick;
+        // uint32_t currentTick = SDL_GetTicks();
+        // float deltaTime = (currentTick - lastTick) / 1000.0f;
+        // lastTick = currentTick;
 
-        rotation += 0.7f * deltaTime;
+        // rotation += 0.7f * deltaTime;
 
-        currentLight->position = Vec3(
-            5.0f * std::cos(rotation),
-            2.0f,
-            5.0f 
-        );
+        // currentLight->position = Vec3(
+        //     5.0f * std::cos(rotation),
+        //     2.0f,
+        //     5.0f 
+        // );
 
-        currentShader->clearLights();
-        currentShader->addLight(*currentLight);
+        // currentShader->clearLights();
+        // currentShader->addLight(*currentLight);
 
         rasterizer.clear(Color(20, 20, 20));
 
-        sphereMesh.setModelMatrix(Matrix4x4::translation(1.0f, std::sin(rotation), 0.0f));
+        // sphereMesh.setModelMatrix(Matrix4x4::translation(1.0f, std::sin(rotation), 0.0f));
         
         rasterizer.beginShadowPass();
         
