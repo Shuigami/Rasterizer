@@ -76,7 +76,7 @@ public:
     Vec3 operator-(const Vec3& v) const { return Vec3(x - v.x, y - v.y, z - v.z); }
     Vec3 operator*(float scalar) const { return Vec3(x * scalar, y * scalar, z * scalar); }
     Vec3 operator/(float scalar) const { return Vec3(x / scalar, y / scalar, z / scalar); }
-    Vec3 operator-() const { return Vec3(-x, -y, -z); }  // Added unary minus operator
+    Vec3 operator-() const { return Vec3(-x, -y, -z); }
 
     float length() const { return std::sqrt(x * x + y * y + z * z); }
     Vec3 normalized() const {
@@ -107,7 +107,7 @@ public:
     Vec4 operator-(const Vec4& v) const { return Vec4(x - v.x, y - v.y, z - v.z, w - v.w); }
     Vec4 operator*(float scalar) const { return Vec4(x * scalar, y * scalar, z * scalar, w * scalar); }
     Vec4 operator/(float scalar) const { return Vec4(x / scalar, y / scalar, z / scalar, w / scalar); }
-    Vec4 operator-() const { return Vec4(-x, -y, -z, -w); }  // Added unary minus operator
+    Vec4 operator-() const { return Vec4(-x, -y, -z, -w); }
 
     Vec3 toVec3() const {
         if (std::abs(w) < 1e-6f) return Vec3(x, y, z);

@@ -321,38 +321,41 @@ void Mesh::createPlane(float width, float depth, const Color& color) {
     m_vertices.clear();
     m_triangles.clear();
     
+    int widthSegments = std::max(1, static_cast<int>(std::ceil(width)));
+    int depthSegments = std::max(1, static_cast<int>(std::ceil(depth)));
+    
     float halfWidth = width / 2.0f;
     float halfDepth = depth / 2.0f;
     
-    Vertex v1, v2, v3, v4;
+    float widthStep = width / widthSegments;
+    float depthStep = depth / depthSegments;
     
-    v1.position = Vec3(-halfWidth, 0, -halfDepth);
-    v1.normal = Vec3(0, 1, 0);
-    v1.color = color;
-    v1.texCoord = Vec2(0, 0);
+    for (int z = 0; z <= depthSegments; z++) {
+        for (int x = 0; x <= widthSegments; x++) {
+            Vertex v;
+            v.position = Vec3(-halfWidth + x * widthStep, 0, -halfDepth + z * depthStep);
+            v.normal = Vec3(0, 1, 0);
+            v.color = color;
+            v.texCoord = Vec2(static_cast<float>(x) / widthSegments, 
+                              static_cast<float>(z) / depthSegments);
+            m_vertices.push_back(v);
+        }
+    }
     
-    v2.position = Vec3(halfWidth, 0, -halfDepth);
-    v2.normal = Vec3(0, 1, 0);
-    v2.color = color;
-    v2.texCoord = Vec2(1, 0);
-    
-    v3.position = Vec3(halfWidth, 0, halfDepth);
-    v3.normal = Vec3(0, 1, 0);
-    v3.color = color;
-    v3.texCoord = Vec2(1, 1);
-    
-    v4.position = Vec3(-halfWidth, 0, halfDepth);
-    v4.normal = Vec3(0, 1, 0);
-    v4.color = color;
-    v4.texCoord = Vec2(0, 1);
-
-    m_vertices.push_back(v1);
-    m_vertices.push_back(v2);
-    m_vertices.push_back(v3);
-    m_vertices.push_back(v4);
-    
-    m_triangles.push_back(Triangle(0, 1, 2));
-    m_triangles.push_back(Triangle(0, 2, 3));
+    int verticesPerRow = widthSegments + 1;
+    for (int z = 0; z < depthSegments; z++) {
+        for (int x = 0; x < widthSegments; x++) {
+            int topLeft = z * verticesPerRow + x;
+            int topRight = topLeft + 1;
+            int bottomLeft = (z + 1) * verticesPerRow + x;
+            int bottomRight = bottomLeft + 1;
+            
+            // First triangle
+            m_triangles.push_back(Triangle(topLeft, topRight, bottomRight));
+            // Second triangle
+            m_triangles.push_back(Triangle(topLeft, bottomRight, bottomLeft));
+        }
+    }
 }
 
 void Mesh::createTriangle(float width, float depth, const Color& color) {

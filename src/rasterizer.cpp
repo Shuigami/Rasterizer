@@ -277,7 +277,8 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
     const std::vector<Vertex>& vertices = mesh.getVertices();
     const std::vector<Triangle>& triangles = mesh.getTriangles();
     Matrix4x4 modelMatrix = mesh.getModelMatrix();
-    
+    int counter = 0;
+
     for (const Triangle& triangle : triangles) {
         const Vertex& v1 = vertices[triangle.v1];
         const Vertex& v2 = vertices[triangle.v2];
@@ -332,7 +333,6 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
             screens.push_back(screen);
         }
 
-        int counter = 0;
 
         for (size_t i = 1; i < clippedVertices.size() - 1; i++) {
             const VertexWithAttributes& clipVert1 = clippedVertices[0];
@@ -356,28 +356,40 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
             int minY = std::max(0, std::min(std::min(static_cast<int>(screen1.y), static_cast<int>(screen2.y)), static_cast<int>(screen3.y)));
             int maxY = std::min(m_height - 1, std::max(std::max(static_cast<int>(screen1.y), static_cast<int>(screen2.y)), static_cast<int>(screen3.y)));
 
+            Vec2 a(screen1.x, screen1.y);
+            Vec2 b(screen2.x, screen2.y);
+            Vec2 c(screen3.x, screen3.y);
+
+            Vec2 v0 = b - a;
+            Vec2 v1 = c - a;
+
+            float d00 = v0.dot(v0);
+            float d01 = v0.dot(v1);
+            float d11 = v1.dot(v1);
+
+            float denom = d00 * d11 - d01 * d01;
+            if (std::abs(denom) < 1e-6f)
+                continue;
+
+            float w1 = 1.0f / clipVert1.position.w;
+            float w2 = 1.0f / clipVert2.position.w;
+            float w3 = 1.0f / clipVert3.position.w;
+
+            float z1 = ndc1.z;
+            float z2 = ndc2.z;
+            float z3 = ndc3.z;
+
+            float facingRatio = normal.dot(viewDir);
+            float bias = 0.00001f * (1.0f - facingRatio);
+
             for (int y = minY; y <= maxY; y++) {
                 for (int x = minX; x <= maxX; x++) {
                     Vec2 p(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f);
 
-                    Vec2 a(screen1.x, screen1.y);
-                    Vec2 b(screen2.x, screen2.y);
-                    Vec2 c(screen3.x, screen3.y);
-
-                    Vec2 v0 = b - a;
-                    Vec2 v1 = c - a;
                     Vec2 v2 = p - a;
 
-                    float d00 = v0.dot(v0);
-                    float d01 = v0.dot(v1);
-                    float d11 = v1.dot(v1);
                     float d20 = v2.dot(v0);
                     float d21 = v2.dot(v1);
-
-                    float denom = d00 * d11 - d01 * d01;
-                    if (std::abs(denom) < 1e-6f) {
-                        continue;
-                    }
 
                     float beta = (d11 * d20 - d01 * d21) / denom;
                     float gamma = (d00 * d21 - d01 * d20) / denom;
@@ -386,20 +398,10 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
                     if (alpha >= 0.0f && beta >= 0.0f && gamma >= 0.0f &&
                         (alpha + beta + gamma) <= 1.0f + 1e-5f) {
 
-                        float w1 = 1.0f / clipVert1.position.w;
-                        float w2 = 1.0f / clipVert2.position.w;
-                        float w3 = 1.0f / clipVert3.position.w;
-
                         float wInterp = alpha * w1 + beta * w2 + gamma * w3;
-                        float z1 = ndc1.z;
-                        float z2 = ndc2.z;
-                        float z3 = ndc3.z;
-
                         float zInterp = (alpha * z1 * w1 + beta * z2 * w2 + gamma * z3 * w3) / wInterp;
 
                         int index = y * m_width + x;
-                        float facingRatio = normal.dot(viewDir);
-                        float bias = 0.00001f * (1.0f - facingRatio);
                         float depthValue = zInterp - bias;
                         
                         if (depthValue < m_depthBuffer[index]) {
@@ -466,7 +468,6 @@ void Rasterizer::beginShadowPass() {
     for (auto& light : m_lightData) {
         std::fill(light.shadowMap.begin(), light.shadowMap.end(), 1.0f);
     }
-    m_shadowsEnabled = true;
 }
 
 float Rasterizer::getShadowFactor(const Vec3& worldPos) const {
@@ -752,6 +753,18 @@ void Rasterizer::handleEvents()
                     LOG_INFO("Debug logging disabled");
                 }
             }
+
+            else if (event.key.keysym.sym == SDLK_s)
+            {
+                m_shadowsEnabled = !m_shadowsEnabled;
+                LOG_INFO("Shadows: " + std::string(m_shadowsEnabled ? "ON" : "OFF"));
+            }
+
+            else if (event.key.keysym.sym == SDLK_e)
+            {
+                setCurrentShader((m_shaderIndex + 1) % m_shaders.size());
+                LOG_INFO("Shader index: " + std::to_string(m_shaderIndex));
+            }
         }
     }
 }
@@ -777,4 +790,26 @@ bool Rasterizer::isInsideFrustum(const Vec4 &clipCoords) const
     return clipCoords.x >= -(w + margin) && clipCoords.x <= (w + margin) &&
            clipCoords.y >= -(w + margin) && clipCoords.y <= (w + margin) &&
            clipCoords.z >= -w && clipCoords.z <= w;
+}
+
+Shader* Rasterizer::getCurrentShader() const {
+    return m_shaders[m_shaderIndex];
+}
+
+void Rasterizer::setCurrentShader(int index) {
+    if (index >= 0 && index < m_shaders.size()) {
+        m_shaderIndex = index;
+    }
+}
+
+void Rasterizer::addShader(Shader* shader) {
+    m_shaders.push_back(shader);
+}
+
+void Rasterizer::setShadowsEnabled(bool enabled) {
+    m_shadowsEnabled = enabled;
+}
+
+void Rasterizer::setWireframeMode(bool enabled) {
+    m_wireframeMode = enabled;
 }

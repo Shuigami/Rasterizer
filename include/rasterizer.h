@@ -27,6 +27,13 @@ public:
     void beginShadowPass();
     float getShadowFactor(const Vec3& worldPos) const;
 
+    Shader* getCurrentShader() const;
+    void setCurrentShader(int index);
+    void addShader(Shader* shader);
+    bool isShadowsEnabled() const { return m_shadowsEnabled; }
+    void setShadowsEnabled(bool enabled);
+    void setWireframeMode(bool enabled);
+
 private:
     int m_width;
     int m_height;
@@ -35,6 +42,9 @@ private:
     SDL_Texture* m_frameBuffer;
     std::vector<uint32_t> m_colorBuffer;
     std::vector<float> m_depthBuffer;
+
+    int m_shaderIndex;
+    std::vector<Shader*> m_shaders;
     
     static const int SHADOW_MAP_SIZE = 2048; 
     static const int MAX_LIGHTS = 8;
