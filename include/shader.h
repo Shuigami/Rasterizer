@@ -182,15 +182,13 @@ protected:
 
 class FlatShader : public Shader {
 public:
-    FlatShader(const Color& color);
+    FlatShader();
     Color fragmentShader(const FragmentShaderInput& input) const override;
 
-    void setColor(const Color& color) { m_color = color; }
     void setCameraPosition(const Vec3& cameraPos) override { m_cameraPos = cameraPos; }
     Vec3 getCameraPosition() const override { return m_cameraPos; }
 
 private:
-    Color m_color;
     Vec3 m_cameraPos;
 };
 

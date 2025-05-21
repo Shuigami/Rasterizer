@@ -40,14 +40,11 @@ Color Shader::fragmentShader(const FragmentShaderInput& input) const {
     return input.color;
 }
 
-FlatShader::FlatShader(const Color& color) : m_color(color), m_cameraPos(0.0f, 0.0f, 5.0f) {
+FlatShader::FlatShader() : m_cameraPos(0.0f, 0.0f, 5.0f) {
 }
 
 Color FlatShader::fragmentShader(const FragmentShaderInput& input) const {
-    if (m_color.r == 255 && m_color.g == 255 && m_color.b == 255) {
-        return input.color;
-    }
-    return m_color;
+    return input.color;
 }
 
 PhongShader::PhongShader()

@@ -32,24 +32,7 @@ void load_scene(Shader& shader) {
     pointLight.intensity = 1.2f;
     pointLight.range = 20.0f;
 
-    Light pointLight2;
-    pointLight2.type = Light::Type::Point;
-    pointLight2.position = Vec3(-2.0f, 2.0f, 2.0f);
-    pointLight2.color = Color(255, 255, 255);
-    pointLight2.intensity = 1.2f;
-    pointLight2.range = 20.0f;
-
-    Light spotLight;
-    spotLight.type = Light::Type::Spot;
-    spotLight.position = Vec3(0.0f, 2.0f, 0.0f);
-    spotLight.direction = Vec3(0.0f, -1.0f, 0.0f);
-    spotLight.color = Color(255, 255, 255);
-    spotLight.intensity = 1.2f;
-    spotLight.range = 20.0f;
-    spotLight.spotAngle = 0.5f;
-
     shader.addLight(pointLight);
-    // shader.addLight(pointLight2);
 
     LOG_INFO("Lighting configured successfully");
 
@@ -76,7 +59,7 @@ void load_shaders(Rasterizer& rasterizer) {
     toonShader->setDiffuse(0.8f);
     toonShader->setSpecular(0.5f);
 
-    FlatShader* flatShader = new FlatShader(Color(200, 50, 50));
+    FlatShader* flatShader = new FlatShader();
 
     rasterizer.addShader(phongShader);
     rasterizer.addShader(toonShader);
@@ -87,7 +70,192 @@ void load_shaders(Rasterizer& rasterizer) {
     load_scene(*flatShader);
 
     rasterizer.setCurrentShader(0);
+    rasterizer.setShadowsEnabled(false);
     LOG_INFO("Shaders loaded successfully");
+}
+
+void scene_1(Rasterizer& rasterizer) {
+    Mesh sphereMesh;
+    sphereMesh.createSphere(16, 16, Color(50, 50, 200));
+
+    Light pointLight;
+    pointLight.type = Light::Type::Point;
+    pointLight.position = Vec3(2.0f, 2.0f, 2.0f);
+    pointLight.color = Color(255, 255, 255);
+    pointLight.intensity = 1.2f;
+    pointLight.range = 20.0f;
+
+    float rotation = 0.0f;
+    uint32_t lastTick = SDL_GetTicks();
+    while (!rasterizer.shouldQuit()) {
+        rasterizer.handleEvents();
+
+        uint32_t currentTick = SDL_GetTicks();
+        float deltaTime = (currentTick - lastTick) / 1000.0f;
+        lastTick = currentTick;
+        rotation += 0.7f * deltaTime;
+
+        pointLight.position = Vec3(2.0f * cos(rotation), 2.0f, 2.0f * sin(rotation));
+
+        rasterizer.getCurrentShader()->clearLights();
+        rasterizer.getCurrentShader()->addLight(pointLight);
+
+        rasterizer.clear(Color(20, 20, 20));
+
+        rasterizer.beginShadowPass();
+        rasterizer.renderShadowMap(sphereMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderMesh(sphereMesh, *rasterizer.getCurrentShader());
+        rasterizer.present();
+    }
+}
+
+void scene_2(Rasterizer& rasterizer) {
+    Mesh sphereMesh;
+    sphereMesh.createSphere(16, 16, Color(50, 50, 200));
+
+    Mesh planeMesh;
+    planeMesh.createPlane(5.0f, 5.0f, Color(255, 0, 0));
+    planeMesh.setModelMatrix(Matrix4x4::translation(0.0f, -0.5f, 0.0f));
+
+    float rotation = 0.0f;
+    uint32_t lastTick = SDL_GetTicks();
+    while (!rasterizer.shouldQuit()) {
+        rasterizer.handleEvents();
+
+        uint32_t currentTick = SDL_GetTicks();
+        float deltaTime = (currentTick - lastTick) / 1000.0f;
+        lastTick = currentTick;
+        rotation += 0.7f * deltaTime;
+
+        sphereMesh.setModelMatrix(Matrix4x4::rotationY(rotation) * Matrix4x4::translation(1.0f, 0.0f, 0.0f));
+
+        rasterizer.clear(Color(20, 20, 20));
+
+        rasterizer.beginShadowPass();
+        rasterizer.renderShadowMap(planeMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderShadowMap(sphereMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderMesh(planeMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderMesh(sphereMesh, *rasterizer.getCurrentShader());
+        rasterizer.present();
+    }
+}
+
+void scene_3(Rasterizer& rasterizer) {
+    Mesh wellMesh;
+    wellMesh.loadFromOBJ("assets/well.obj");
+    wellMesh.setModelMatrix(Matrix4x4::scaling(0.1f, 0.1f, 0.1f));
+
+    float rotation = 0.0f;
+    uint32_t lastTick = SDL_GetTicks();
+    while (!rasterizer.shouldQuit()) {
+        rasterizer.handleEvents();
+
+        uint32_t currentTick = SDL_GetTicks();
+        float deltaTime = (currentTick - lastTick) / 1000.0f;
+        lastTick = currentTick;
+        rotation += 0.7f * deltaTime;
+
+        wellMesh.setModelMatrix(Matrix4x4::rotationY(rotation) * Matrix4x4::translation(0.0f, -1.0f, 0.0f) * Matrix4x4::scaling(0.1f, 0.1f, 0.1f));
+
+        rasterizer.clear(Color(20, 20, 20));
+
+        rasterizer.renderMesh(wellMesh, *rasterizer.getCurrentShader());
+        rasterizer.present();
+    }
+}
+
+void scene_4(Rasterizer& rasterizer) {
+    Mesh sunMesh;
+    sunMesh.createSphere(16, 16, Color(255, 255, 0));
+
+    Mesh mercuryMesh;
+    mercuryMesh.createSphere(16, 16, Color(150, 150, 150));
+    mercuryMesh.setModelMatrix(Matrix4x4::scaling(0.1f, 0.1f, 0.1f));
+
+    Mesh venusMesh;
+    venusMesh.createSphere(16, 16, Color(255, 200, 200));
+    venusMesh.setModelMatrix(Matrix4x4::scaling(0.2f, 0.2f, 0.2f));
+
+    Mesh earthMesh;
+    earthMesh.createSphere(16, 16, Color(0, 0, 255));
+    earthMesh.setModelMatrix(Matrix4x4::scaling(0.2f, 0.2f, 0.2f));
+
+    Mesh marsMesh;
+    marsMesh.createSphere(16, 16, Color(255, 0, 0));
+    marsMesh.setModelMatrix(Matrix4x4::scaling(0.2f, 0.2f, 0.2f));
+
+    Mesh jupiterMesh;
+    jupiterMesh.createSphere(16, 16, Color(255, 200, 0));
+    jupiterMesh.setModelMatrix(Matrix4x4::scaling(0.5f, 0.5f, 0.5f));
+
+    Mesh saturnMesh;
+    saturnMesh.createSphere(16, 16, Color(255, 200, 0));
+    saturnMesh.setModelMatrix(Matrix4x4::scaling(0.5f, 0.5f, 0.5f));
+
+    Mesh uranusMesh;
+    uranusMesh.createSphere(16, 16, Color(0, 255, 255));
+    uranusMesh.setModelMatrix(Matrix4x4::scaling(0.3f, 0.3f, 0.3f));
+
+    Mesh neptuneMesh;
+    neptuneMesh.createSphere(16, 16, Color(0, 0, 255));
+    neptuneMesh.setModelMatrix(Matrix4x4::scaling(0.3f, 0.3f, 0.3f));
+
+    float rotationSun = 0.0f;
+    float rotationMercury = 0.0f;
+    float rotationVenus = 0.0f;
+    float rotationEarth = 0.0f;
+    float rotationMars = 0.0f;
+    float rotationJupiter = 0.0f;
+    float rotationSaturn = 0.0f;
+    float rotationUranus = 0.0f;
+    float rotationNeptune = 0.0f;
+
+    rasterizer.getCurrentShader()->setCameraPosition(Vec3(0.0f, 5.0f, 5.0f));
+    rasterizer.getCurrentShader()->setViewMatrix(Matrix4x4::lookAt(Vec3(0.0f, 5.0f, 5.0f), Vec3(0.0f, 0.0f, 0.0f), Vec3(0.0f, 1.0f, 0.0f)));
+    rasterizer.getCurrentShader()->setProjectionMatrix(Matrix4x4::perspective(60.0f * (3.14159f / 180.0f), static_cast<float>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.1f, 100.0f));
+
+    uint32_t lastTick = SDL_GetTicks();
+    while (!rasterizer.shouldQuit()) {
+        rasterizer.handleEvents();
+
+        uint32_t currentTick = SDL_GetTicks();
+        float deltaTime = (currentTick - lastTick) / 1000.0f;
+        lastTick = currentTick;
+
+        rotationSun += 0.1f * deltaTime;
+        rotationMercury += 0.2f * deltaTime;
+        rotationVenus += 0.3f * deltaTime;
+        rotationEarth += 0.4f * deltaTime;
+        rotationMars += 0.5f * deltaTime;
+        rotationJupiter += 0.6f * deltaTime;
+        rotationSaturn += 0.7f * deltaTime;
+        rotationUranus += 0.8f * deltaTime;
+        rotationNeptune += 0.9f * deltaTime;
+
+        sunMesh.setModelMatrix(Matrix4x4::rotationY(rotationSun) * Matrix4x4::translation(0.0f, 0.0f, 0.0f));
+        mercuryMesh.setModelMatrix(Matrix4x4::rotationY(rotationMercury) * Matrix4x4::translation(1.0f, 0.0f, 0.0f) * Matrix4x4::scaling(0.1f, 0.1f, 0.1f));
+        venusMesh.setModelMatrix(Matrix4x4::rotationY(rotationVenus) * Matrix4x4::translation(1.5f, 0.0f, 0.0f) * Matrix4x4::scaling(0.2f, 0.2f, 0.2f));
+        earthMesh.setModelMatrix(Matrix4x4::rotationY(rotationEarth) * Matrix4x4::translation(2.0f, 0.0f, 0.0f) * Matrix4x4::scaling(0.2f, 0.2f, 0.2f));
+        marsMesh.setModelMatrix(Matrix4x4::rotationY(rotationMars) * Matrix4x4::translation(2.5f, 0.0f, 0.0f) * Matrix4x4::scaling(0.2f, 0.2f, 0.2f));
+        jupiterMesh.setModelMatrix(Matrix4x4::rotationY(rotationJupiter) * Matrix4x4::translation(3.0f, 0.0f, 0.0f) * Matrix4x4::scaling(0.5f, 0.5f, 0.5f));
+        saturnMesh.setModelMatrix(Matrix4x4::rotationY(rotationSaturn) * Matrix4x4::translation(3.5f, 0.0f, 0.0f) * Matrix4x4::scaling(0.5f, 0.5f, 0.5f));
+        uranusMesh.setModelMatrix(Matrix4x4::rotationY(rotationUranus) * Matrix4x4::translation(4.0f, 0.0f, 0.0f) * Matrix4x4::scaling(0.3f, 0.3f, 0.3f));
+        neptuneMesh.setModelMatrix(Matrix4x4::rotationY(rotationNeptune) * Matrix4x4::translation(4.5f, 0.0f, 0.0f) * Matrix4x4::scaling(0.3f, 0.3f, 0.3f));
+
+        rasterizer.clear(Color(20, 20, 20));
+
+        rasterizer.renderMesh(sunMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderMesh(mercuryMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderMesh(venusMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderMesh(earthMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderMesh(marsMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderMesh(jupiterMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderMesh(saturnMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderMesh(uranusMesh, *rasterizer.getCurrentShader());
+        rasterizer.renderMesh(neptuneMesh, *rasterizer.getCurrentShader());
+
+        rasterizer.present();
+    }
 }
 
 int main(int argc, char** argv) {
@@ -109,59 +277,10 @@ int main(int argc, char** argv) {
     LOG_INFO("Rasterizer initialized successfully");
     load_shaders(rasterizer);
 
-    LOG_INFO("Loading meshes...");
-    Mesh cubeMesh;
-    cubeMesh.createCube(Color(80, 80, 80));
-
-    Mesh sphereMesh;
-    sphereMesh.createSphere(16, 16, Color(50, 50, 200));
-
-    Mesh planeMesh;
-    planeMesh.createPlane(5.0f, 5.0f, Color(255, 0, 0));
-
-    Mesh triangleMesh;
-    triangleMesh.createTriangle(5.5f, 5.5f, Color(0, 0, 255));
-
-    Mesh swordMesh;
-    swordMesh.loadFromOBJ("assets/sword.obj");
-
-    cubeMesh.setModelMatrix(Matrix4x4::translation(0.0f, -1.0f, 0.0f));
-    sphereMesh.setModelMatrix(Matrix4x4::scaling(5.0f, 5.0f, 5.0f));
-    planeMesh.setModelMatrix(Matrix4x4::translation(0.0f, -0.5f, 0.0f));
-    swordMesh.setModelMatrix(Matrix4x4::scaling(0.05f, 0.05f, 0.05f) * Matrix4x4::rotationX(M_PI / 2.0f) * Matrix4x4::translation(0.0f, -4.0f, 0.0f));
-    LOG_INFO("All meshes loaded successfully");
-
-    float rotation = 0.0f;
-    uint32_t lastTick = SDL_GetTicks();
-    LOG_INFO("Starting render loop");
-    while (!rasterizer.shouldQuit()) {
-        rasterizer.handleEvents();
-
-        uint32_t currentTick = SDL_GetTicks();
-        float deltaTime = (currentTick - lastTick) / 1000.0f;
-        lastTick = currentTick;
-        rotation += 0.7f * deltaTime;
-
-        sphereMesh.setModelMatrix(Matrix4x4::rotationY(rotation) * Matrix4x4::translation(1.0f, 0.0f, 0.0f));
-
-        rasterizer.clear(Color(20, 20, 20));
-
-        rasterizer.beginShadowPass();
-
-        rasterizer.renderShadowMap(sphereMesh, *rasterizer.getCurrentShader());
-        uint32_t current = SDL_GetTicks();
-        rasterizer.renderShadowMap(planeMesh, *rasterizer.getCurrentShader());
-        LOG_INFO("Done rendering shadow map for plane in " + std::to_string(SDL_GetTicks() - current) + " ms");
-        // rasterizer.renderShadowMap(swordMesh, *rasterizer.getCurrentShader());
-
-        rasterizer.renderMesh(sphereMesh, *rasterizer.getCurrentShader());
-        current = SDL_GetTicks();
-        rasterizer.renderMesh(planeMesh, *rasterizer.getCurrentShader());
-        LOG_INFO("Done rendering plane in " + std::to_string(SDL_GetTicks() - current) + " ms");
-        // rasterizer.renderMesh(swordMesh, *currentShader);
-
-        rasterizer.present();
-    }
+    // scene_1(rasterizer);
+    // scene_2(rasterizer);
+    // scene_3(rasterizer);
+    // scene_4(rasterizer);
 
     LOG_INFO("Shutting down application");
     SDL_Quit();
