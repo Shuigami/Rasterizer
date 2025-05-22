@@ -23,7 +23,6 @@ VertexShaderOutput Shader::vertexShader(const VertexShaderInput& input, Matrix4x
 
     output.worldPos = Vec3(worldPos.x, worldPos.y, worldPos.z);
     
-    // Calculate shadow position if shadows are enabled
     if (m_enableShadows) {
         output.shadowPos = m_lightProjection * m_lightView * worldPos;
     } else {
@@ -60,7 +59,6 @@ Color PhongShader::fragmentShader(const FragmentShaderInput& input) const {
 
     Color result = ambientColor;
     
-    // Get shadow factor
     float shadowFactor = input.shadowFactor;
 
     for (const auto& light : m_lights) {
@@ -139,7 +137,6 @@ Color PhongShader::fragmentShader(const FragmentShaderInput& input) const {
             specular.a
         );
         
-        // Apply shadow factor to diffuse and specular components only (not ambient)
         diffuse = diffuse * shadowFactor;
         specular = specular * shadowFactor;
 
@@ -171,7 +168,6 @@ Color ToonShader::fragmentShader(const FragmentShaderInput& input) const {
         }
     }
     
-    // Get shadow factor
     float shadowFactor = input.shadowFactor;
 
     for (const auto& light : m_lights) {

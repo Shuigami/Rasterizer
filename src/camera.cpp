@@ -5,7 +5,7 @@ Camera::Camera()
     : m_position(0.0f, 0.0f, 5.0f),
       m_target(0.0f, 0.0f, 0.0f),
       m_up(0.0f, 1.0f, 0.0f),
-      m_fov(60.0f * 3.14159f / 180.0f), // 60 degrees in radians
+      m_fov(60.0f * 3.14159f / 180.0f),
       m_aspectRatio(4.0f / 3.0f),
       m_nearPlane(0.1f),
       m_farPlane(100.0f),

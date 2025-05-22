@@ -350,9 +350,7 @@ void Mesh::createPlane(float width, float depth, const Color& color) {
             int bottomLeft = (z + 1) * verticesPerRow + x;
             int bottomRight = bottomLeft + 1;
             
-            // First triangle
             m_triangles.push_back(Triangle(topLeft, topRight, bottomRight));
-            // Second triangle
             m_triangles.push_back(Triangle(topLeft, bottomRight, bottomLeft));
         }
     }

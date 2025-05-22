@@ -83,7 +83,6 @@ void Logger::log(LogLevel level, const std::string& message) {
         
         std::cout << fullMessage.str() << std::endl;
         
-        // Output to file if enabled
         if (m_fileOutputEnabled && m_fileStream.is_open()) {
             m_fileStream << fullMessage.str() << std::endl;
         }
