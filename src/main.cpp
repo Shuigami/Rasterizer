@@ -7,8 +7,8 @@
 #include "matrix.h"
 #include <logger.h>
 
-const int WINDOW_WIDTH = 800;
-const int WINDOW_HEIGHT = 600;
+const int WINDOW_WIDTH = 1920;
+const int WINDOW_HEIGHT = 1080;
 bool wireframeMode = false;
 
 void load_scene(Shader& shader) {
@@ -280,7 +280,7 @@ int main(int argc, char** argv) {
     // scene_1(rasterizer);
     // scene_2(rasterizer);
     // scene_3(rasterizer);
-    // scene_4(rasterizer);
+    scene_4(rasterizer);
 
     LOG_INFO("Shutting down application");
     SDL_Quit();
