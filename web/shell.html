@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Software Rasterizer</title>
+  <meta name="description" content="A C++ software rasterizer compiled to WebAssembly: Phong, toon and flat shading, shadow mapping, every pixel computed on the CPU.">
+  <style>
+    :root {
+      --bg: #0e0f12;
+      --panel: #16181d;
+      --line: #262a32;
+      --text: #e8e9ec;
+      --muted: #8b909b;
+      --accent: #f2b544;
+      --accent-ink: #1a1405;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 48px; }
+    header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+    h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
+    header p { margin: 4px 0 0; color: var(--muted); max-width: 60ch; }
+    header a { color: var(--muted); font-size: 14px; }
+    header a:hover { color: var(--text); }
+
+    .stage {
+      position: relative;
+      margin-top: 24px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #141414;
+      aspect-ratio: 16 / 9;
+    }
+    canvas { display: block; width: 100%; height: 100%; image-rendering: auto; }
+    .overlay {
+      position: absolute; inset: 0;
+      display: grid; place-items: center;
+      color: var(--muted); font-size: 14px;
+      background: #141414;
+    }
+    .overlay.hidden { display: none; }
+    .fps {
+      position: absolute; top: 10px; right: 12px;
+      font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--muted);
+      background: rgba(0, 0, 0, 0.45);
+      padding: 5px 7px; border-radius: 5px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px 24px;
+      margin-top: 16px;
+    }
+    .group { display: flex; flex-direction: column; gap: 6px; }
+    .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .segmented { display: flex; flex-wrap: wrap; gap: 6px; }
+    button {
+      font: inherit; font-size: 14px;
+      color: var(--text);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 7px 12px;
+      cursor: pointer;
+    }
+    button:hover { border-color: #3a3f4a; }
+    button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button kbd { font: 11px ui-monospace, Menlo, monospace; opacity: 0.6; margin-left: 6px; }
+    .note { margin-top: 20px; color: var(--muted); font-size: 13px; }
+    .note kbd {
+      font: 12px ui-monospace, Menlo, monospace;
+      border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px;
+      padding: 0 5px; color: var(--text);
+    }
+    @media (max-width: 720px) {
+      .controls { grid-template-columns: 1fr; }
+      button kbd { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Software Rasterizer</h1>
+        <p>C++17, no GPU pipeline: every triangle is clipped, rasterized and shaded on the CPU, then compiled to WebAssembly to run here.</p>
+      </div>
+      <a href="https://github.com/Shuigami/Rasterizer">Source on GitHub</a>
+    </header>
+
+    <div class="stage">
+      <canvas id="canvas" width="960" height="540" tabindex="-1" aria-label="Rasterizer output"></canvas>
+      <div class="overlay" id="overlay">Loading…</div>
+      <div class="fps" id="fps">– fps</div>
+    </div>
+
+    <div class="controls">
+      <div class="group">
+        <span class="label">Scene</span>
+        <div class="segmented" id="scenes">
+          <button data-scene="0">Orbiting light<kbd>1</kbd></button>
+          <button data-scene="1">Shadows<kbd>2</kbd></button>
+          <button data-scene="2">Well model<kbd>3</kbd></button>
+          <button data-scene="3">Solar system<kbd>4</kbd></button>
+        </div>
+      </div>
+      <div class="group">
+        <span class="label">Shading</span>
+        <div class="segmented" id="shaders">
+          <button data-shader="0">Phong</button>
+          <button data-shader="1">Toon</button>
+          <button data-shader="2">Flat</button>
+        </div>
+      </div>
+      <div class="group">
+        <span class="label">Options</span>
+        <div class="segmented">
+          <button id="shadows">Shadow mapping<kbd>S</kbd></button>
+          <button id="wireframe">Wireframe<kbd>W</kbd></button>
+        </div>
+      </div>
+    </div>
+
+    <p class="note">
+      Keyboard: <kbd>1</kbd>–<kbd>4</kbd> scenes, <kbd>E</kbd> next shader,
+      <kbd>S</kbd> shadows, <kbd>W</kbd> wireframe. Shadow mapping applies to the first two scenes.
+    </p>
+  </main>
+
+  <script>
+    const overlay = document.getElementById('overlay');
+    const canvas = document.getElementById('canvas');
+    canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+
+    var Module = {
+      canvas,
+      print: (text) => console.log(text),
+      printErr: (text) => console.warn(text),
+      setStatus: (text) => {
+        if (text) overlay.textContent = text.replace(/\(\d+\/\d+\)/, '').trim() || 'Loading…';
+      },
+      onRuntimeInitialized: () => {
+        // main() sets up the first scene right after this; wait for it.
+        const waitForScene = () => {
+          if (Module._rz_scene() < 0) return requestAnimationFrame(waitForScene);
+          overlay.classList.add('hidden');
+          startUi();
+        };
+        waitForScene();
+      },
+      onAbort: () => {
+        overlay.classList.remove('hidden');
+        overlay.textContent = 'The rasterizer stopped. Reload the page to try again.';
+      },
+    };
+
+    function startUi() {
+      const call = (name, value) => Module['_' + name](value);
+      const state = () => ({
+        scene: Module._rz_scene(),
+        shader: Module._rz_shader(),
+        shadows: Module._rz_shadows(),
+        wireframe: Module._rz_wireframe(),
+      });
+
+      const sync = () => {
+        const s = state();
+        document.querySelectorAll('[data-scene]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.scene) === s.scene)));
+        document.querySelectorAll('[data-shader]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.shader) === s.shader)));
+        document.getElementById('shadows').setAttribute('aria-pressed', String(s.shadows === 1));
+        document.getElementById('wireframe').setAttribute('aria-pressed', String(s.wireframe === 1));
+      };
+
+      document.getElementById('scenes').addEventListener('click', (event) => {
+        const button = event.target.closest('[data-scene]');
+        if (button) { call('rz_set_scene', Number(button.dataset.scene)); sync(); }
+      });
+      document.getElementById('shaders').addEventListener('click', (event) => {
+        const button = event.target.closest('[data-shader]');
+        if (button) { call('rz_set_shader', Number(button.dataset.shader)); sync(); }
+      });
+      document.getElementById('shadows').addEventListener('click', () => {
+        call('rz_set_shadows', Module._rz_shadows() ? 0 : 1); sync();
+      });
+      document.getElementById('wireframe').addEventListener('click', () => {
+        call('rz_set_wireframe', Module._rz_wireframe() ? 0 : 1); sync();
+      });
+      // Keyboard shortcuts are handled inside the C++ program; keep the buttons in step.
+      window.addEventListener('keyup', sync);
+      sync();
+
+      const fps = document.getElementById('fps');
+      let frames = 0;
+      let last = performance.now();
+      const tick = (now) => {
+        frames += 1;
+        if (now - last >= 500) {
+          fps.textContent = `${Math.round((frames * 1000) / (now - last))} fps`;
+          frames = 0;
+          last = now;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>

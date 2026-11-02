@@ -15,7 +15,8 @@ struct VertexWithAttributes {
 
 Rasterizer::Rasterizer(int width, int height)
     : m_width(width), m_height(height), m_window(nullptr), m_renderer(nullptr),
-      m_frameBuffer(nullptr), m_quit(false), m_shadowsEnabled(true), m_wireframeMode(false) {
+      m_frameBuffer(nullptr), m_shaderIndex(0), m_shadowsEnabled(true), m_quit(false),
+      m_wireframeMode(false), m_sceneRequest(-1) {
 
     m_colorBuffer.resize(width * height, 0);
     m_depthBuffer.resize(width * height, 1.0f);
@@ -62,7 +63,8 @@ bool Rasterizer::initialize() {
 
     m_frameBuffer = SDL_CreateTexture(
         m_renderer,
-        SDL_PIXELFORMAT_ARGB8888,
+        // Color::toUint32() packs (a << 24) | (b << 16) | (g << 8) | r.
+        SDL_PIXELFORMAT_ABGR8888,
         SDL_TEXTUREACCESS_STREAMING,
         m_width, m_height
     );
@@ -730,8 +732,14 @@ void Rasterizer::handleEvents()
 
         else if (event.type == SDL_KEYDOWN)
         {
-            if (event.key.keysym.sym == SDLK_ESCAPE)
+            if (event.key.keysym.sym >= SDLK_1 && event.key.keysym.sym <= SDLK_9)
+                m_sceneRequest = event.key.keysym.sym - SDLK_1;
+
+#ifndef __EMSCRIPTEN__
+            // A web page cannot be closed by the program it runs.
+            else if (event.key.keysym.sym == SDLK_ESCAPE)
                 m_quit = true;
+#endif
 
             else if (event.key.keysym.sym == SDLK_w)
             {
@@ -808,6 +816,12 @@ void Rasterizer::addShader(Shader* shader) {
 
 void Rasterizer::setShadowsEnabled(bool enabled) {
     m_shadowsEnabled = enabled;
+}
+
+int Rasterizer::takeSceneRequest() {
+    int request = m_sceneRequest;
+    m_sceneRequest = -1;
+    return request;
 }
 
 void Rasterizer::setWireframeMode(bool enabled) {

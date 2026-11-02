@@ -2,6 +2,8 @@
 
 A modern C++ software rasterizer built from scratch with multiple shading techniques and real-time rendering capabilities! 🚀
 
+**▶️ Try it in your browser: [shuigami.github.io/Rasterizer](https://shuigami.github.io/Rasterizer/)** (compiled to WebAssembly)
+
 ## ✨ Features
 
 - 🎯 **Multiple Shading Models**
@@ -29,7 +31,8 @@ A modern C++ software rasterizer built from scratch with multiple shading techni
 ## 🛠️ Technical Stack
 
 - **Language**: C++17
-- **Graphics**: SDL2 & SDL2_image
+- **Graphics**: SDL2 (window and frame presentation only; all rendering is done on the CPU)
+- **Web**: Emscripten → WebAssembly, published with GitHub Actions
 - **Build System**: CMake
 - **Architecture**: Modular design with separate components
 
@@ -61,24 +64,28 @@ A modern C++ software rasterizer built from scratch with multiple shading techni
 - **C++ Compiler** (g++, clang++)
 - **CMake** (3.10+)
 - **SDL2** development libraries
-- **SDL2_image** development libraries
 
 ### 📦 Installation
 
 #### Ubuntu/Debian
 ```bash
 sudo apt update
-sudo apt install cmake g++ libsdl2-dev libsdl2-image-dev
+sudo apt install cmake g++ libsdl2-dev
 ```
 
 #### Fedora/CentOS
 ```bash
-sudo dnf install cmake gcc-c++ SDL2-devel SDL2_image-devel
+sudo dnf install cmake gcc-c++ SDL2-devel
+```
+
+#### Arch Linux
+```bash
+sudo pacman -S cmake gcc sdl2
 ```
 
 #### macOS
 ```bash
-brew install cmake sdl2 sdl2_image
+brew install cmake sdl2
 ```
 
 ### 🔨 Building
@@ -110,12 +117,32 @@ brew install cmake sdl2 sdl2_image
    ./rasterizer
    ```
 
+### 🌐 Web build (WebAssembly)
+
+With the [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) activated:
+
+```bash
+emcmake cmake -S . -B build-web
+cmake --build build-web
+cd build-web && python3 -m http.server 8000   # open http://localhost:8000
+```
+
+The page around the canvas is `web/shell.html`. The web build renders at 960×540
+(1920×1080 natively) and uses 1024² shadow maps to stay fast and light in the browser.
+Every push to `main` rebuilds and publishes it through `.github/workflows/pages.yml`.
+
 ## 🎮 Controls
 
-- **Shader Switching**: Use number keys to switch between different shading models
-- **Wireframe Mode**: Toggle wireframe rendering
-- **Shadow Toggle**: Enable/disable real-time shadows
-- **Camera Controls**: Mouse and keyboard navigation
+| Key | Action |
+|-----|--------|
+| `1`–`4` | Scene: orbiting light, shadows, well model, solar system |
+| `E` | Next shader (Phong → Toon → Flat) |
+| `S` | Toggle shadow mapping (used by scenes 1 and 2) |
+| `W` | Toggle wireframe |
+| `D` | Toggle debug logging |
+| `Esc` | Quit (native only) |
+
+On the web page, the same actions are also available as buttons.
 
 ## 🧪 Debugging
 

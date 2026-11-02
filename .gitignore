@@ -33,6 +33,7 @@
 
 .clangd
 build/
+build-web/
 log.txt
 *.ppm
 

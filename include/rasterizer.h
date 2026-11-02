@@ -30,9 +30,16 @@ public:
     Shader* getCurrentShader() const;
     void setCurrentShader(int index);
     void addShader(Shader* shader);
+    int getShaderIndex() const { return m_shaderIndex; }
+    int getShaderCount() const { return static_cast<int>(m_shaders.size()); }
+    Shader* getShader(int index) const { return m_shaders[index]; }
     bool isShadowsEnabled() const { return m_shadowsEnabled; }
     void setShadowsEnabled(bool enabled);
+    bool isWireframeMode() const { return m_wireframeMode; }
     void setWireframeMode(bool enabled);
+
+    // Scene index asked for with keys 1-9 since the last call, or -1.
+    int takeSceneRequest();
 
 private:
     int m_width;
@@ -46,7 +53,12 @@ private:
     int m_shaderIndex;
     std::vector<Shader*> m_shaders;
     
-    static const int SHADOW_MAP_SIZE = 2048; 
+#ifdef __EMSCRIPTEN__
+    // 8 lights x 2048^2 floats would reserve 128 MB in the browser.
+    static const int SHADOW_MAP_SIZE = 1024;
+#else
+    static const int SHADOW_MAP_SIZE = 2048;
+#endif
     static const int MAX_LIGHTS = 8;
     struct LightData {
         std::vector<float> shadowMap;
@@ -59,6 +71,7 @@ private:
     
     bool m_quit;
     bool m_wireframeMode;
+    int m_sceneRequest;
 
     Vec4 viewportTransform(const Vec4& clipCoords) const;
     bool isInsideFrustum(const Vec4& clipCoords) const;
