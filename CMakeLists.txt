@@ -16,6 +16,7 @@ set(SOURCES
     src/mesh.cpp
     src/camera.cpp
     src/shader.cpp
+    src/gallery_scenes.cpp
 )
 
 if(EMSCRIPTEN)

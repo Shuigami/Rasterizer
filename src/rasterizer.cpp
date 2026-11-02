@@ -401,7 +401,11 @@ void Rasterizer::renderMesh(const Mesh& mesh, const Shader& shader) {
                         (alpha + beta + gamma) <= 1.0f + 1e-5f) {
 
                         float wInterp = alpha * w1 + beta * w2 + gamma * w3;
-                        float zInterp = (alpha * z1 * w1 + beta * z2 * w2 + gamma * z3 * w3) / wInterp;
+                        // NDC depth is already linear in screen space: interpolate it with
+                        // the screen barycentrics. Weighting it by 1/w (as for attributes)
+                        // skews depth across large triangles and hides thin surfaces lying
+                        // just above them, like the paths in the village and garden.
+                        float zInterp = alpha * z1 + beta * z2 + gamma * z3;
 
                         int index = y * m_width + x;
                         float depthValue = zInterp - bias;
@@ -730,10 +734,28 @@ void Rasterizer::handleEvents()
         if (event.type == SDL_QUIT)
             m_quit = true;
 
+        else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT)
+            m_dragging = true;
+
+        else if (event.type == SDL_MOUSEBUTTONUP && event.button.button == SDL_BUTTON_LEFT)
+            m_dragging = false;
+
+        else if (event.type == SDL_MOUSEMOTION && m_dragging)
+        {
+            m_viewInput.dragX += static_cast<float>(event.motion.xrel);
+            m_viewInput.dragY += static_cast<float>(event.motion.yrel);
+        }
+
+        else if (event.type == SDL_MOUSEWHEEL)
+            m_viewInput.wheel += static_cast<float>(event.wheel.y);
+
         else if (event.type == SDL_KEYDOWN)
         {
             if (event.key.keysym.sym >= SDLK_1 && event.key.keysym.sym <= SDLK_9)
                 m_sceneRequest = event.key.keysym.sym - SDLK_1;
+
+            else if (event.key.keysym.sym == SDLK_r)
+                m_viewInput.reset = true;
 
 #ifndef __EMSCRIPTEN__
             // A web page cannot be closed by the program it runs.
@@ -816,6 +838,12 @@ void Rasterizer::addShader(Shader* shader) {
 
 void Rasterizer::setShadowsEnabled(bool enabled) {
     m_shadowsEnabled = enabled;
+}
+
+Rasterizer::ViewInput Rasterizer::takeViewInput() {
+    ViewInput input = m_viewInput;
+    m_viewInput = ViewInput();
+    return input;
 }
 
 int Rasterizer::takeSceneRequest() {

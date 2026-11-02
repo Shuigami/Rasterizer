@@ -39,7 +39,9 @@
       background: #141414;
       aspect-ratio: 16 / 9;
     }
-    canvas { display: block; width: 100%; height: 100%; image-rendering: auto; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+    canvas:active { cursor: grabbing; }
+    canvas.fixed { cursor: default; }
     .overlay {
       position: absolute; inset: 0;
       display: grid; place-items: center;
@@ -47,7 +49,7 @@
       background: #141414;
     }
     .overlay.hidden { display: none; }
-    .fps {
+    .stat {
       position: absolute; top: 10px; right: 12px;
       font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
       color: var(--muted);
@@ -74,6 +76,7 @@
       cursor: pointer;
     }
     button:hover { border-color: #3a3f4a; }
+    button:disabled { opacity: 0.4; cursor: default; }
     button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
     button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     button kbd { font: 11px ui-monospace, Menlo, monospace; opacity: 0.6; margin-left: 6px; }
@@ -94,7 +97,7 @@
     <header>
       <div>
         <h1>Software Rasterizer</h1>
-        <p>C++17, no GPU pipeline: every triangle is clipped, rasterized and shaded on the CPU, then compiled to WebAssembly to run here.</p>
+        <p>C++17, no GPU pipeline: every triangle is clipped, rasterized and shaded on the CPU, then compiled to WebAssembly to run here. The gallery scenes are the ones shown on my portfolio.</p>
       </div>
       <a href="https://github.com/Shuigami/Rasterizer">Source on GitHub</a>
     </header>
@@ -102,17 +105,18 @@
     <div class="stage">
       <canvas id="canvas" width="960" height="540" tabindex="-1" aria-label="Rasterizer output"></canvas>
       <div class="overlay" id="overlay">Loading…</div>
-      <div class="fps" id="fps">– fps</div>
+      <div class="stat" id="stat">–</div>
     </div>
 
     <div class="controls">
       <div class="group">
-        <span class="label">Scene</span>
-        <div class="segmented" id="scenes">
-          <button data-scene="0">Orbiting light<kbd>1</kbd></button>
-          <button data-scene="1">Shadows<kbd>2</kbd></button>
-          <button data-scene="2">Well model<kbd>3</kbd></button>
-          <button data-scene="3">Solar system<kbd>4</kbd></button>
+        <span class="label">Gallery</span>
+        <div class="segmented scenes">
+          <button data-scene="0">Studio<kbd>1</kbd></button>
+          <button data-scene="1">Village<kbd>2</kbd></button>
+          <button data-scene="2">Temple<kbd>3</kbd></button>
+          <button data-scene="3">Garden<kbd>4</kbd></button>
+          <button data-scene="4">Orbits<kbd>5</kbd></button>
         </div>
       </div>
       <div class="group">
@@ -124,17 +128,29 @@
         </div>
       </div>
       <div class="group">
+        <span class="label">Animated</span>
+        <div class="segmented scenes">
+          <button data-scene="5">Orbiting light<kbd>6</kbd></button>
+          <button data-scene="6">Shadows<kbd>7</kbd></button>
+          <button data-scene="7">Well model<kbd>8</kbd></button>
+          <button data-scene="8">Solar system<kbd>9</kbd></button>
+        </div>
+      </div>
+      <div class="group">
         <span class="label">Options</span>
         <div class="segmented">
-          <button id="shadows">Shadow mapping<kbd>S</kbd></button>
+          <button id="reset">Reset view<kbd>R</kbd></button>
           <button id="wireframe">Wireframe<kbd>W</kbd></button>
+          <button id="shadows">Shadows<kbd>S</kbd></button>
         </div>
       </div>
     </div>
 
     <p class="note">
-      Keyboard: <kbd>1</kbd>–<kbd>4</kbd> scenes, <kbd>E</kbd> next shader,
-      <kbd>S</kbd> shadows, <kbd>W</kbd> wireframe. Shadow mapping applies to the first two scenes.
+      Drag to orbit the gallery scenes, scroll to zoom. Keyboard: <kbd>1</kbd>–<kbd>9</kbd> scenes,
+      <kbd>E</kbd> next shader, <kbd>W</kbd> wireframe, <kbd>R</kbd> reset view,
+      <kbd>S</kbd> shadow mapping (used by the orbiting light and shadows demos).
+      Gallery scenes are only redrawn when something changes.
     </p>
   </main>
 
@@ -180,12 +196,16 @@
         document.querySelectorAll('[data-shader]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.shader) === s.shader)));
         document.getElementById('shadows').setAttribute('aria-pressed', String(s.shadows === 1));
         document.getElementById('wireframe').setAttribute('aria-pressed', String(s.wireframe === 1));
+        const gallery = s.scene < 5;
+        document.getElementById('reset').disabled = !gallery;
+        canvas.classList.toggle('fixed', !gallery);
       };
 
-      document.getElementById('scenes').addEventListener('click', (event) => {
+      document.querySelectorAll('.scenes').forEach((group) => group.addEventListener('click', (event) => {
         const button = event.target.closest('[data-scene]');
         if (button) { call('rz_set_scene', Number(button.dataset.scene)); sync(); }
-      });
+      }));
+      document.getElementById('reset').addEventListener('click', () => { Module._rz_reset_view(); });
       document.getElementById('shaders').addEventListener('click', (event) => {
         const button = event.target.closest('[data-shader]');
         if (button) { call('rz_set_shader', Number(button.dataset.shader)); sync(); }
@@ -200,19 +220,11 @@
       window.addEventListener('keyup', sync);
       sync();
 
-      const fps = document.getElementById('fps');
-      let frames = 0;
-      let last = performance.now();
-      const tick = (now) => {
-        frames += 1;
-        if (now - last >= 500) {
-          fps.textContent = `${Math.round((frames * 1000) / (now - last))} fps`;
-          frames = 0;
-          last = now;
-        }
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
+      // Time the C++ code spent drawing the last frame.
+      const stat = document.getElementById('stat');
+      setInterval(() => {
+        stat.textContent = `${Module._rz_render_ms().toFixed(1)} ms / frame`;
+      }, 250);
     }
   </script>
   {{{ SCRIPT }}}

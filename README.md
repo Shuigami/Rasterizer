@@ -133,14 +133,25 @@ Every push to `main` rebuilds and publishes it through `.github/workflows/pages.
 
 ## 🎮 Controls
 
-| Key | Action |
-|-----|--------|
-| `1`–`4` | Scene: orbiting light, shadows, well model, solar system |
+| Input | Action |
+|-------|--------|
+| `1`–`5` | Gallery scenes: studio, village, temple, garden, orbits |
+| `6`–`9` | Animated demos: orbiting light, shadows, well model, solar system |
+| Drag / wheel | Orbit / zoom the camera (gallery scenes) |
+| `R` | Reset the gallery camera |
 | `E` | Next shader (Phong → Toon → Flat) |
-| `S` | Toggle shadow mapping (used by scenes 1 and 2) |
+| `S` | Toggle shadow mapping (used by the orbiting light and shadows demos) |
 | `W` | Toggle wireframe |
 | `D` | Toggle debug logging |
 | `Esc` | Quit (native only) |
+
+## 🖼️ Gallery scenes
+
+`src/gallery_scenes.cpp` builds the five static scenes shown on the portfolio from
+procedural shapes only (boxes, spheres, cylinders, gable roofs, rings, trees): no OBJ
+or texture. They share a 40° camera, a warm directional key light and a cool fill
+light, Phong with ambient 0.42 (0.5 for the orbits), and no cast shadows. Since they
+do not move, they are only redrawn when the camera, shader or wireframe changes.
 
 On the web page, the same actions are also available as buttons.
 

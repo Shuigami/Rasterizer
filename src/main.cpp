@@ -6,6 +6,10 @@
 #include "vector.h"
 #include "matrix.h"
 #include <logger.h>
+#include "gallery_scenes.h"
+#include <algorithm>
+#include <chrono>
+#include <string>
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -78,19 +82,119 @@ void load_shaders(Rasterizer& rasterizer) {
     LOG_INFO("Shaders loaded successfully");
 }
 
+void configure_phong(Rasterizer& rasterizer, float ambient, float diffuse, float specular, float shininess) {
+    if (auto* phong = dynamic_cast<PhongShader*>(rasterizer.getShader(0))) {
+        phong->setAmbient(ambient);
+        phong->setDiffuse(diffuse);
+        phong->setSpecular(specular);
+        phong->setShininess(shininess);
+    }
+}
+
 // Every scene starts from the default camera and light on all shaders, so
 // switching shaders or scenes never keeps state from a previous scene.
 void reset_shaders(Rasterizer& rasterizer) {
     for (int i = 0; i < rasterizer.getShaderCount(); ++i) {
         load_scene(*rasterizer.getShader(i));
     }
+    configure_phong(rasterizer, 0.2f, 0.7f, 0.5f, 32.0f);
 }
 
-// A scene owns its meshes and advances one frame per update().
+// A scene owns its meshes and draws one frame per update(). Static scenes
+// are only redrawn when something changes, and can be orbited with the mouse.
 class Scene {
 public:
     virtual ~Scene() = default;
     virtual void update(Rasterizer& rasterizer, float deltaTime) = 0;
+    virtual bool animated() const { return true; }
+    virtual void view(Rasterizer&, const Rasterizer::ViewInput&) {}
+};
+
+// Gallery scenes (see gallery_scenes.cpp): static, lit by a warm key light
+// and a cool fill light, viewed through an orbiting 40-degree camera.
+class GalleryView : public Scene {
+public:
+    GalleryView(Rasterizer& rasterizer, const std::string& name)
+        : m_scene(makeGalleryScene(name)) {
+        Vec3 offset = m_scene.eye - m_scene.target;
+        m_initialDistance = offset.length();
+        m_initialPitch = std::asin(offset.y / m_initialDistance);
+        m_initialYaw = std::atan2(offset.z, offset.x);
+        resetView();
+
+        Light key;
+        key.type = Light::Type::Directional;
+        key.direction = Vec3(0.7f, -1.0f, -0.6f);
+        key.intensity = 0.85f;
+        key.color = Color(255, 242, 222);
+        key.range = 100.0f;
+
+        Light fill;
+        fill.type = Light::Type::Directional;
+        fill.direction = Vec3(-1.0f, -0.3f, 0.5f);
+        fill.intensity = 0.24f;
+        fill.color = Color(200, 221, 255);
+        fill.range = 100.0f;
+
+        const Matrix4x4 projection = Matrix4x4::perspective(
+            GALLERY_FOV_DEGREES * (PI / 180.0f),
+            static_cast<float>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.1f, 100.0f);
+        for (int i = 0; i < rasterizer.getShaderCount(); ++i) {
+            Shader& shader = *rasterizer.getShader(i);
+            shader.clearLights();
+            shader.addLight(key);
+            shader.addLight(fill);
+            shader.setProjectionMatrix(projection);
+        }
+        configure_phong(rasterizer, m_scene.ambient, 0.65f, 0.16f, 48.0f);
+        applyCamera(rasterizer);
+    }
+
+    bool animated() const override { return false; }
+
+    void view(Rasterizer& rasterizer, const Rasterizer::ViewInput& input) override {
+        if (input.reset) {
+            resetView();
+        }
+        const float maxPitch = 1.45f;
+        m_yaw -= input.dragX * 0.008f;
+        m_pitch = std::max(0.05f, std::min(maxPitch, m_pitch + input.dragY * 0.008f));
+        m_distance *= std::pow(0.9f, input.wheel);
+        m_distance = std::max(0.5f * m_initialDistance, std::min(2.0f * m_initialDistance, m_distance));
+        applyCamera(rasterizer);
+    }
+
+    void update(Rasterizer& rasterizer, float) override {
+        rasterizer.clear(m_scene.background);
+        Shader& shader = *rasterizer.getCurrentShader();
+        for (const Mesh& mesh : m_scene.meshes) {
+            rasterizer.renderMesh(mesh, shader);
+        }
+    }
+
+private:
+    void resetView() {
+        m_yaw = m_initialYaw;
+        m_pitch = m_initialPitch;
+        m_distance = m_initialDistance;
+    }
+
+    void applyCamera(Rasterizer& rasterizer) {
+        const Vec3 eye = m_scene.target + Vec3(
+            m_distance * std::cos(m_pitch) * std::cos(m_yaw),
+            m_distance * std::sin(m_pitch),
+            m_distance * std::cos(m_pitch) * std::sin(m_yaw));
+        const Matrix4x4 view = Matrix4x4::lookAt(eye, m_scene.target, Vec3(0.0f, 1.0f, 0.0f));
+        for (int i = 0; i < rasterizer.getShaderCount(); ++i) {
+            Shader& shader = *rasterizer.getShader(i);
+            shader.setCameraPosition(eye);
+            shader.setViewMatrix(view);
+        }
+    }
+
+    GalleryScene m_scene;
+    float m_initialYaw = 0.0f, m_initialPitch = 0.0f, m_initialDistance = 1.0f;
+    float m_yaw = 0.0f, m_pitch = 0.0f, m_distance = 1.0f;
 };
 
 // Scene 1: a sphere lit by a light orbiting around it.
@@ -232,13 +336,19 @@ private:
     std::vector<float> m_rotations;
 };
 
-const int SCENE_COUNT = 4;
+// Keys 1-5: gallery scenes; keys 6-9: the animated demos.
+const char* const GALLERY_SCENES[] = {"studio", "village", "temple", "jardin", "orbites"};
+const int GALLERY_COUNT = 5;
+const int SCENE_COUNT = GALLERY_COUNT + 4;
 
 struct App {
     std::unique_ptr<Rasterizer> rasterizer;
     std::unique_ptr<Scene> scene;
     int sceneIndex = -1;
     uint32_t lastTick = 0;
+    bool dirty = true;
+    int lastSettings = -1;
+    float renderMs = 0.0f;
 };
 
 App app;
@@ -249,14 +359,19 @@ void load_scene_index(int index) {
     }
     Rasterizer& rasterizer = *app.rasterizer;
     reset_shaders(rasterizer);
-    switch (index) {
-        case 0: app.scene = std::make_unique<OrbitingLightScene>(); break;
-        case 1: app.scene = std::make_unique<ShadowScene>(); break;
-        case 2: app.scene = std::make_unique<WellScene>(); break;
-        default: app.scene = std::make_unique<SolarSystemScene>(rasterizer); break;
+    if (index < GALLERY_COUNT) {
+        app.scene = std::make_unique<GalleryView>(rasterizer, GALLERY_SCENES[index]);
+    } else {
+        switch (index - GALLERY_COUNT) {
+            case 0: app.scene = std::make_unique<OrbitingLightScene>(); break;
+            case 1: app.scene = std::make_unique<ShadowScene>(); break;
+            case 2: app.scene = std::make_unique<WellScene>(); break;
+            default: app.scene = std::make_unique<SolarSystemScene>(rasterizer); break;
+        }
     }
     app.sceneIndex = index;
     app.lastTick = SDL_GetTicks();
+    app.dirty = true;
     LOG_INFO("Scene " + std::to_string(index + 1));
 }
 
@@ -268,12 +383,32 @@ void frame() {
         load_scene_index(request);
     }
 
+    Rasterizer::ViewInput input = rasterizer.takeViewInput();
+    if (input.dragX != 0.0f || input.dragY != 0.0f || input.wheel != 0.0f || input.reset) {
+        app.scene->view(rasterizer, input);
+        app.dirty = true;
+    }
+
+    // Shader, wireframe or shadow changes (keys or page buttons) need a redraw.
+    int settings = rasterizer.getShaderIndex() * 4
+        + (rasterizer.isWireframeMode() ? 2 : 0) + (rasterizer.isShadowsEnabled() ? 1 : 0);
+    if (settings != app.lastSettings) {
+        app.lastSettings = settings;
+        app.dirty = true;
+    }
+
     uint32_t currentTick = SDL_GetTicks();
     float deltaTime = (currentTick - app.lastTick) / 1000.0f;
     app.lastTick = currentTick;
 
+    if (!app.scene->animated() && !app.dirty) {
+        return;
+    }
+    auto start = std::chrono::steady_clock::now();
     app.scene->update(rasterizer, deltaTime);
+    app.renderMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - start).count();
     rasterizer.present();
+    app.dirty = false;
 }
 
 #ifdef __EMSCRIPTEN__
@@ -290,6 +425,15 @@ EMSCRIPTEN_KEEPALIVE int rz_scene() { return ready() ? app.sceneIndex : -1; }
 EMSCRIPTEN_KEEPALIVE int rz_shader() { return ready() ? app.rasterizer->getShaderIndex() : -1; }
 EMSCRIPTEN_KEEPALIVE int rz_shadows() { return ready() && app.rasterizer->isShadowsEnabled() ? 1 : 0; }
 EMSCRIPTEN_KEEPALIVE int rz_wireframe() { return ready() && app.rasterizer->isWireframeMode() ? 1 : 0; }
+EMSCRIPTEN_KEEPALIVE void rz_reset_view() {
+    if (ready()) {
+        Rasterizer::ViewInput input;
+        input.reset = true;
+        app.scene->view(*app.rasterizer, input);
+        app.dirty = true;
+    }
+}
+EMSCRIPTEN_KEEPALIVE float rz_render_ms() { return app.renderMs; }
 }
 #endif
 
@@ -311,8 +455,7 @@ int main() {
     }
     load_shaders(*app.rasterizer);
 
-    // Keys 1-4 switch scenes; the solar system is shown first, as before.
-    load_scene_index(SCENE_COUNT - 1);
+    load_scene_index(0);
 
 #ifdef __EMSCRIPTEN__
     // The browser drives the loop: one call to frame() per animation frame.

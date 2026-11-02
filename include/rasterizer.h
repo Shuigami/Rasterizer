@@ -41,6 +41,15 @@ public:
     // Scene index asked for with keys 1-9 since the last call, or -1.
     int takeSceneRequest();
 
+    // Mouse drag (pixels), wheel steps and R key since the last call.
+    struct ViewInput {
+        float dragX = 0.0f;
+        float dragY = 0.0f;
+        float wheel = 0.0f;
+        bool reset = false;
+    };
+    ViewInput takeViewInput();
+
 private:
     int m_width;
     int m_height;
@@ -72,6 +81,8 @@ private:
     bool m_quit;
     bool m_wireframeMode;
     int m_sceneRequest;
+    bool m_dragging = false;
+    ViewInput m_viewInput;
 
     Vec4 viewportTransform(const Vec4& clipCoords) const;
     bool isInsideFrustum(const Vec4& clipCoords) const;
